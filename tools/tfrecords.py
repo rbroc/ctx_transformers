@@ -65,7 +65,18 @@ def save_tfrecord_nn1(dataset, filename=None,
                       shard=False, n_shards=20, 
                       path='datasets/',
                       compression=None):
-    ''' Saves tfrecord using functions defined above'''
+    ''' Saves tfrecord using functions defined above 
+        Args
+            dataset (pd.DataFrame): df to convert and save
+            filename (str): filename string, only relevant if 
+                shard=False
+            shard (bool): whether to save the dataset in one
+                tfrecord or shard it across multiple
+            n_shards (int): how many files to shard it across
+            path (str): path to TFRecord files
+            compression (str): if defined, file is compressed
+                according to specified format
+    '''
     dataset = dataset.map(_map_fn_nn1)
     if shard:
         dataset = dataset.enumerate()

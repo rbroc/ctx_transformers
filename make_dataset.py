@@ -12,6 +12,7 @@ from tools.datasets import (split_dataset, stack_examples,
 PROCESSED_PATH = Path('processed') / 'pushshift'
 LABEL_PATH = Path('labels')
 FIG_PATH = Path('figures')
+DATASET_PATH = Path('datasets')
 INPUT_FILENAME = PROCESSED_PATH / '500sr_encoded.txt'
 
 # Initialize split utils
@@ -21,13 +22,13 @@ gsplit_small = GroupShuffleSplit(n_splits=1, train_size=.25,
                                  test_size=.05, random_state=0)
 
 # Define useful function for dataset creation
-def _process_and_save(df, gsplit, figname, dev): # Add other arguments?
+def _process_and_save(df, gsplit, figname, dsname, dev):
     dslist = split_dataset(df, gsplit, dev)
     plot_split_stat(*dslist, save=True, fname=str(FIG_PATH/figname))
     dslist = stack_examples(dslist)
     for d in dslist:
-        save_dataset(d, path, shard=True, filename=None,
-                     compression='GZIP', n_shards=1000) # define path and other variables
+        save_dataset(d, path=str(DATASET_PATH / dsname), shard=True, 
+                    compression='GZIP', n_shards=1000)
 
 
 # Main function
@@ -64,15 +65,19 @@ def make_datasets():
 
     # Create and save toy and full datasets
     print('Creating and saving toy dataset...')
-    _process_and_save(df, gsplit_small, 'split_stats_small.png', dev=False)
+    _process_and_save(df, gsplit_small, 'split_stats_small.png', 
+                      dsname='nn1_small',dev=False)
     print('Creating and saving full dataset...')
-    _process_and_save(df, gsplit_main, 'split_stats.png', dev=True)
+    _process_and_save(df, gsplit_main, 'split_stats.png', 
+                      dsname= 'nn1_full', dev=True)
 
     # Create and save shuffled dataset
     print('Creating and saving shuffled dataset')
     df_shuffled = df.copy()
     df_shuffled['author'] = np.random.permutation(df_shuffled['author'].values)
-    _process_and_save(df, gsplit_main, 'split_stats_shuffled.png', dev=True)
+    _process_and_save(df, gsplit_main, 'split_stats_shuffled.png', 
+                      dsname='nn1_shuffled', dev=True)
+
 
 if __name__=='__main__':
     make_datasets()
