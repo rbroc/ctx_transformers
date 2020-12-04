@@ -2,18 +2,13 @@ import json
 import os
 import pandas as pd
 import numpy as np
-import tensorflow as tf
 import random
-import seaborn as sns
-from matplotlib import pyplot as plt
 import re
 import itertools
 from tools.preprocess import (merge_csv, add_aggregate_metrics, 
                               plot_aggregates, update_aggregates, 
                               log_size, encode_posts, plot_size_curve)
-from tools.datasets import (save_tfrecord_nn1, load_tfrecord_nn1)
 import fasttext
-from sklearn.model_selection import GroupShuffleSplit
 from pathlib import Path
 from transformers import DistilBertTokenizer
 import timeit
