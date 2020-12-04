@@ -1,11 +1,10 @@
-
-from tools.preprocess import update_aggregates
 import pandas as pd
 import tensorflow as tf
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
 from tools.tfrecords import save_tfrecord_nn1
+from tools.preprocess import update_aggregates
 
 
 # Define useful variables for train/test split

@@ -8,6 +8,7 @@ from tools.datasets import (split_dataset, stack_examples,
                             plot_split_stat, save_dataset, 
                             plot_subreddit_distribution)
 
+# Define useful variables
 PROCESSED_PATH = Path('processed') / 'pushshift'
 LABEL_PATH = Path('labels')
 FIG_PATH = Path('figures')
@@ -19,7 +20,17 @@ gsplit_main = GroupShuffleSplit(n_splits=1, train_size=.70,
 gsplit_small = GroupShuffleSplit(n_splits=1, train_size=.25, 
                                  test_size=.05, random_state=0)
 
+# Define useful function for dataset creation
+def _process_and_save(df, gsplit, figname, dev): # Add other arguments?
+    dslist = split_dataset(df, gsplit, dev)
+    plot_split_stat(*dslist, save=True, fname=str(FIG_PATH/figname))
+    dslist = stack_examples(dslist)
+    for d in dslist:
+        save_dataset(d, path, shard=True, filename=None,
+                     compression='GZIP', n_shards=1000) # define path and other variables
 
+
+# Main function
 def make_datasets():
     # Read file
     print('Reading input file...')
@@ -51,38 +62,17 @@ def make_datasets():
                                 save=True, 
                                 fname=str(FIG_PATH/'subreddit_distribution_nn1.png'))
 
-    # Create and save toy datasets
+    # Create and save toy and full datasets
     print('Creating and saving toy dataset...')
-    train_small, test_small = split_dataset(df, gsplit_small, dev=False)
-    plot_split_stat(train_small, test_small, 
-                    save=True, fname=str(FIG_PATH/'split_stats_small.png'))
-    train_small, test_small = stack_examples([train_small, test_small])
-    for d in [train_small, test_small]:
-        save_dataset(d, path, shard=True, filename=None,
-                     compression='GZIP', n_shards=1000) # define path and 
+    _process_and_save(df, gsplit_small, 'split_stats_small.png', dev=False)
+    print('Creating and saving full dataset...')
+    _process_and_save(df, gsplit_main, 'split_stats.png', dev=True)
 
-    # Create and save full datasets
-   print('Creating and saving full dataset...')
-    train, test, dev = split_dataset(df, gsplit_main, dev=True)
-    plot_split_stat(train, test, save=True, 
-                    fname=str(FIG_PATH/'split_stats.png'))
-    train, test, dev = stack_examples([train, test, dev])
-    for d in [train, test, dev]:
-        save_dataset(d, path, shard=True, filename=None,
-                     compression='GZIP', n_shards=1000) # define path and 
-
-    # Create and save shuffled datasets
-    print('Creating and saving shuffled dataset...')
+    # Create and save shuffled dataset
+    print('Creating and saving shuffled dataset')
     df_shuffled = df.copy()
     df_shuffled['author'] = np.random.permutation(df_shuffled['author'].values)
-    train, test, dev = split_dataset(df_shuffled, gsplit_main, dev=True)
-    plot_split_stat(train, test, save=True, 
-                    fname=str(FIG_PATH/'split_stats.png'))
-    train, test, dev = stack_examples([train, test, dev])
-    for d in [train, test, dev]:
-        save_dataset(d, path, shard=True, filename=None,
-                     compression='GZIP', n_shards=1000) # define path and 
-
+    _process_and_save(df, gsplit_main, 'split_stats_shuffled.png', dev=True)
 
 if __name__=='__main__':
     make_datasets()
