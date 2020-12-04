@@ -15,7 +15,8 @@ from tools.datasets import (save_tfrecord_nn1, load_tfrecord_nn1)
 import fasttext
 from sklearn.model_selection import GroupShuffleSplit
 from pathlib import Path
-
+from transformers import DistilBertTokenizer
+import timeit
 
 # define paths
 RAW_PATH = Path('raw') / 'pushshift'
@@ -23,26 +24,24 @@ PROCESSED_PATH = Path('processed') / 'pushshift'
 RAW_PATH.mkdir(exist_ok=True)
 PROCESSED_PATH.mkdir(exist_ok=True)
 
-
 # define params for filtering
 MIN_POSTS_PER_USER = 10
 MIN_UNIQUE_SUBREDDITS_PER_USER = 3
 MIN_POSTS_PER_SUBREDDIT = 10
 MIN_UNIQUE_USERS_PER_SUBREDDIT = 10
 
-
 # Define log parameters
 sizedict = {'names':[], 'users':[], 'posts':[], 'subreddits':[]}
 sizelog = str(PROCESSED_PATH / 'size_log.json')
 sizedict = json.load(open(sizelog))
 
-
-# Define language detection model
+# Define language detection model anad tokenizer
 langdetect = fasttext.load_model('utils/fasttext/lid.176.bin')
+tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
 
 # Define useful functions
-def language_detection(s):
+def _language_detection(s):
     try:
         s = re.sub('\n', ' ', s)
         return langdetect.predict(' '.join(s.split(' ')[:5]))[0][0].split('__')[2]
@@ -50,10 +49,43 @@ def language_detection(s):
         return 'unk'
 
 
-def preprocess():
-    ''' Does first preprocessing on the dataset (filtering by number of users,
-        subreddits, language, duplicates, etc...)'''
+def _encode_posts(d):
+    idxs = list(np.arange(0, d.shape[0], 100000)) + [d.shape[0]]
+    start = timeit.default_timer() 
+    timestamp = start
+    for i in range(len(idxs) - 1):
+        print(f'Timestamp previous step {timestamp - start}')
+        print(f'Encoding posts {idxs[i]} to {idxs[i+1]}  \
+                out of {d.shape[0]}')
+        tokenized = d['selftext'][idxs[i]:idxs[i+1]].apply(lambda x: tokenizer.encode_plus(' '.join(x.split()[:400]), 
+                                                                                            truncation=True, 
+                                                                                            padding='max_length'))
+        if i == 0:
+            tokdf = pd.DataFrame(tokenized)
+        else:
+            tokdf = pd.concat([tokdf, pd.DataFrame(tokenized)], 
+                               ignore_index=True)
+        timestamp = timeit.default_timer()
+    d['input_ids'] = tokdf['selftext'].apply(lambda x: x['input_ids'])
+    d['attention_mask'] = tokdf['selftext'].apply(lambda x: x['attention_mask'])
+    return d
 
+
+def _plot_dataset_size(sdict):
+    fig, ax = plt.subplots(ncols=3, figsize=(10,4), sharex=True)
+    for idx, metric in enumerate(['users', 'posts', 'subreddits']):
+        sns.lineplot(x=sdict['names'], y=sdict[metric], ax=ax[idx])
+        ax[idx].set_ylabel(metric)
+        ax[idx].set_yscale('log')
+        ax[idx].set_xticklabels(sdict['names'], rotation=90)
+    plt.tight_layout()
+    plt.show() # Replace with save
+
+
+# Preprocessing loop
+def preprocess():
+    ''' Runs preprocessing on the dataset (filtering by number of users,
+        subreddits, language, duplicates, etc...)'''
     print('Reading files...')
     # Load and merge
     df = merge_csv(PROCESSED_PATH)
@@ -82,7 +114,7 @@ def preprocess():
 
     # Filter by language 
     print('Removing non-English posts')
-    df['lang'] = df['selftext'].apply(language_detection)
+    df['lang'] = df['selftext'].apply(_language_detection)
     df = df[df['lang'] == 'en']
     sizedict = log_size(df, sizedict, 'lang_filter', sizelog)
 
@@ -124,11 +156,36 @@ def preprocess():
     df.to_csv(str(PROCESSED_PATH / 'dataset_500sr.txt'), sep='\t', index=False)
     sizedict = log_size(df, sizedict, '500sr_user_filter', sizelog)
 
+    # String-ify post text
+    df['selftext'] = df['selftext'].astype('str')
+    df = _encode_posts(df)
+    sizedict = log_size(df, sizedict, 'tokenize', sizelog)
+
+    # Print dataset features
+    print(f'There are {df.author.nunique()} users, \
+          {df.shape[0]} posts, {df.subreddit.nunique()} subreddits')
+    print(f'Min - avg - max posts per user: {df.user_posts_count.min()}, \
+                                            {df.user_posts_count.mean()}, \
+                                            {df.user_posts_count.max()}')
+    print(f'Min - avg - max subreddits per user: {df.user_nr_unique_subreddits.min()}, \
+                                                 {df.user_nr_unique_subreddits.mean()}, \
+                                                 {df.user_nr_unique_subreddits.max()}')
+    print(f'Min - avg - max posts per subreddit: {df.subreddit_posts_count.min()}, \
+                                                 {df.subreddit_posts_count.mean()}, \
+                                                 {df.subreddit_posts_count.max()}')
+    print(f'Min - avg - max users per subreddit: {df.subreddit_nr_unique_users.min()}, \
+                                                 {df.subreddit_nr_unique_users.mean()}, \
+                                                 {df.subreddit_nr_unique_users.max()}')
+
+    # Save dataset plots
+    plot_aggregates(df, bins=[50, 20, 50, 50], vlines=[10, 25, 50, 100], 
+                    figsize=(8,6), nrows=2, ncols=2) # Add save option
+
+    # Plot dataset size
+    _plot_dataset_size(sizedict)
+
 
 if __name__ == '__main__':
     preprocess()
-
-
-
 
 
