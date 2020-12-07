@@ -11,7 +11,6 @@ FIG_FILE = str(FIG_PATH / 'nn1.png')
 # Define encoder model specs
 encoder_model = TFDistilBertModel.from_pretrained('distilbert-base-uncased')
 
-
 class TransformerBlock(layers.Layer):
     ''' Transformer block with self-attention '''
     def __init__(self, embed_dim, ff_dim, name=None, rate=0.1):
