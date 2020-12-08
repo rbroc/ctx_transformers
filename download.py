@@ -8,7 +8,7 @@ import itertools
 import pandas as pd
 
 # Directory params for download
-SAVE_DIR = 'tmp'
+SAVE_DIR = Path('tmp')
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Requests url

@@ -1,7 +1,7 @@
 from tensorflow import keras
 import tensorflow as tf
 import glob
-from tools.tfrecords import (load_tfrecord_nn1)
+from tools.tfrecords import load_tfrecord_nn1
 from models.nn1 import Model
 from pathlib import Path
 
@@ -15,7 +15,7 @@ loss='categorical_crossentropy'
 metrics=['categorical_accuracy']
 
 def train_nn1():
-    model = Model1()
+    model = Model()
     keras.utils.plot_model(model, MODEL_FILE, show_shapes=True)
     model.summary()
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
