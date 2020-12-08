@@ -44,12 +44,13 @@ class ClassificationBlock(layers.Layer):
     def call(self, inputs):
         return self.ffn(inputs)
 
+
 class Model(keras.Model):
     ''' Define full model '''
     def __init__(self, trainable=False, n_classes=500, 
                 embed_dim=768, transformer_ff_dim=32, 
                 pre_classifier_dim=32):
-        super(Model1, self).__init__()
+        super(Model, self).__init__()
         self.encoder = CustomBertLayer(encoder_model, 
                                        name='encoder', 
                                        trainable=trainable)
