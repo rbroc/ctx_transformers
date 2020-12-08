@@ -29,7 +29,7 @@ class CustomBertLayer(layers.Layer):
         if low_mem:
             enc = tf.map_fn(self._enc_loop, elems=tuple(input), 
                             fn_output_signature=self.output_signature,
-                            parallel_iterations=10)
+                            parallel_iterations=50)
         else:
             enc = tf.map_fn(lambda x: self.model({'input_ids': x[0], 
                                               'attention_mask': x[1]})[0][:,0,:],
