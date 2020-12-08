@@ -1,7 +1,7 @@
 from tensorflow import keras
 from tensorflow.keras import layers, Input
 from transformers import TFDistilBertModel
-from custom_bert import CustomBertLayer
+from .custom_bert import CustomBertLayer
 from pathlib import Path
 
 # Define path variable

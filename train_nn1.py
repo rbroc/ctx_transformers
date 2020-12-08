@@ -1,6 +1,6 @@
 from tensorflow import keras
 import tensorflow as tf
-from keras.layers import Input
+from tensorflow.keras import Input
 import glob
 from tools.tfrecords import load_tfrecord_nn1
 from models.nn1 import Model
@@ -20,13 +20,13 @@ attention_mask = Input(shape=(None, 512), dtype='int32', name='attention_mask')
 
 #def train_nn1():
 outs = Model()([input_ids, attention_mask])
-model = keras.Model([input_ids, attention_mask], outs)
+model = keras.Model([input_ids, attention_mask], {'one_hot_subreddit': outs})
 keras.utils.plot_model(model, MODEL_FILE, show_shapes=True)
 model.summary()
 model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
 # Grab dataset
-fnames = glob.glob('datasets/test/*')
+fnames = glob.glob('datasets/nn1_small/train/*')
 ds = load_tfrecord_nn1(filenames=fnames, compression_type='GZIP')
 
 # Fit dataset
