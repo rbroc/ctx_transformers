@@ -3,15 +3,15 @@ FROM ubuntu:18.04
 
 # Install
 RUN apt-get update && apt-get upgrade -y 
-RUN apt-get install -y python3.7
-RUN pip install --upgrade pip
+RUN apt-get install -y python3.7 python3-pip
+RUN pip3 install --upgrade pip
 
 # Set wd
 WORKDIR /root
 COPY . .
 
-# pip install from requirements list
+# Install dependencies
 RUN pip install -r /root/requirements.txt
 
 # Make all scripts executable
-RUN find . -type f -iname "*.py" -exec chmod +x {} \; 
+RUN find . -type f -iname "*.py" -exec chmod +x {} \;

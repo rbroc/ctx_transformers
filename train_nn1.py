@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from tensorflow import keras
 import tensorflow as tf
 from tensorflow.keras import Input
