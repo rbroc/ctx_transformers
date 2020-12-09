@@ -15,10 +15,10 @@ loss='categorical_crossentropy'
 metrics=['categorical_accuracy']
 
 # Define inputs
-input_ids = Input(shape=(None, 512), dtype='int32', name='input_ids')
-attention_mask = Input(shape=(None, 512), dtype='int32', name='attention_mask')
+input_ids = Input(shape=(512,), dtype='int32', name='input_ids')
+attention_mask = Input(shape=(512,), dtype='int32', name='attention_mask')
 
-#def train_nn1():
+# Train the model
 outs = Model()([input_ids, attention_mask])
 model = keras.Model([input_ids, attention_mask], {'one_hot_subreddit': outs})
 keras.utils.plot_model(model, MODEL_FILE, show_shapes=True)
@@ -32,10 +32,10 @@ ds = load_tfrecord_nn1(filenames=fnames, compression_type='GZIP')
 # Fit dataset
 history = model.fit(ds.batch(1), epochs=2, verbose=1) 
 
-    # TO DOS:
-    # Fix batch size issue - probably need padded batches
-    # Add logging of metrics (loss etc)
-    # Add printing examples
-    # Add prefetch
-    # Add parallelization options
+# TO DOS:
+# Fix batch size issue - maybe no batching? 
+# Add logging
+# Add printing examples
+# Add prefetch
+# Add parallelization options
 

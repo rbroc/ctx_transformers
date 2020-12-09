@@ -31,7 +31,7 @@ sizedict = {'names':[], 'users':[], 'posts':[], 'subreddits':[]}
 sizelog = str(PROCESSED_PATH / 'size_log.json')
 sizedict = json.load(open(sizelog))
 
-# Define language detection model anad tokenizer
+# Define language detection model and tokenizer
 langdetect = fasttext.load_model('utils/fasttext/lid.176.bin')
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
@@ -87,7 +87,7 @@ def preprocess():
     df.to_csv(fname, sep='\t', index=False)
 
     # Subset subreddits
-    print('Subsetting for top 500 subreddits...')
+    print('Subsetting top 500 subreddits...')
     srdict = {}
     for sr in df.subreddit.unique():
         srdict[sr] = df[df['subreddit'] == sr]['subreddit_posts_count'].iloc[0]
