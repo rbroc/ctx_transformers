@@ -1,7 +1,7 @@
 from tensorflow import keras
+import tensorflow as tf
 from tensorflow.keras import layers, Input
 from transformers import TFDistilBertModel
-from .custom_bert import CustomBertLayer
 from pathlib import Path
 
 # Define path variable
@@ -11,9 +11,24 @@ FIG_FILE = str(FIG_PATH / 'nn1.png')
 # Define encoder model specs
 encoder_model = TFDistilBertModel.from_pretrained('distilbert-base-uncased')
 
+class CustomBertLayer(layers.Layer):
+    ''' Custom BERT Layer supporting 4D input '''
+    def __init__(self, model=encoder_model, name=None, trainable=True):
+        super(CustomBertLayer, self).__init__(name=name)
+        self.model = model
+        self.trainable = trainable
+
+    def call(self, input, low_mem=True):
+        enc = tf.map_fn(lambda x: self.model({'input_ids': x[0], 
+                                            'attention_mask': x[1]})[0][:,0,:],
+                        elems=tuple(input), 
+                        fn_output_signature=tf.float32)
+        return enc
+
+
 class TransformerBlock(layers.Layer):
     ''' Transformer block with self-attention '''
-    def __init__(self, embed_dim, ff_dim, name=None, rate=0.1):
+    def __init__(self, embed_dim=768, ff_dim=32, name=None, rate=0.1):
         super(TransformerBlock, self).__init__(name=name)
         self.att = layers.Attention() # self-attention?
         self.ffn = keras.Sequential(
@@ -35,7 +50,7 @@ class TransformerBlock(layers.Layer):
 
 class ClassificationBlock(layers.Layer):
     ''' Define classification block for 2d subreddits'''
-    def __init__(self, relu_dim, n_classes, name=None):
+    def __init__(self, relu_dim=32, n_classes=500, name=None):
         super(ClassificationBlock, self).__init__(name=name)
         self.ffn = keras.Sequential(
             [layers.Dense(relu_dim, activation="relu"), 
@@ -44,24 +59,3 @@ class ClassificationBlock(layers.Layer):
     def call(self, inputs):
         return self.ffn(inputs)
 
-
-class Model(keras.Model):
-    ''' Define full model '''
-    def __init__(self, trainable=False, n_classes=500, 
-                embed_dim=768, transformer_ff_dim=32, 
-                pre_classifier_dim=32):
-        super(Model, self).__init__()
-        self.encoder = CustomBertLayer(encoder_model, 
-                                       name='encoder', 
-                                       trainable=trainable)
-        self.transformer = TransformerBlock(embed_dim=embed_dim, 
-                                            ff_dim=transformer_ff_dim, 
-                                            name='transformer')
-        self.classifier = ClassificationBlock(relu_dim=pre_classifier_dim, 
-                                              n_classes=n_classes, 
-                                              name='one_hot_subreddit')
-    
-    def call(self, inputs):
-        x = self.encoder(inputs)
-        x = self.transformer(x)
-        return self.classifier(x)

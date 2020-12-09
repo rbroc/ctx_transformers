@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow.keras import Input
 import glob
 from tools.tfrecords import load_tfrecord_nn1
-from models.nn1 import Model
+from models.nn1 import CustomBertLayer, TransformerBlock, ClassificationBlock
 from pathlib import Path
 
 # Define folder to save model graph
@@ -15,12 +15,16 @@ loss='categorical_crossentropy'
 metrics=['categorical_accuracy']
 
 # Define inputs
-input_ids = Input(shape=(512,), dtype='int32', name='input_ids')
-attention_mask = Input(shape=(512,), dtype='int32', name='attention_mask')
+input_ids = Input(shape=(None, 512), dtype='int32', name='input_ids')
+attention_mask = Input(shape=(None, 512), dtype='int32', name='attention_mask')
 
-# Train the model
-outs = Model()([input_ids, attention_mask])
-model = keras.Model([input_ids, attention_mask], {'one_hot_subreddit': outs})
+# Train
+bert = CustomBertLayer(trainable=False)([input_ids, attention_mask])
+transformer = TransformerBlock(name='transformer')(bert)
+predictions = ClassificationBlock(name='one_hot_subreddit')(transformer)
+model = keras.Model([input_ids, attention_mask], predictions)
+
+# Visualize
 keras.utils.plot_model(model, MODEL_FILE, show_shapes=True)
 model.summary()
 model.compile(optimizer=optimizer, loss=loss, metrics=metrics)

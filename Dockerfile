@@ -7,7 +7,7 @@ RUN apt-get install -y python3.7
 RUN pip install --upgrade pip
 
 # Set wd
-WORKDIR /opt/personality_reddit
+WORKDIR /root
 COPY . .
 
 # pip install from requirements list
