@@ -4,7 +4,8 @@ import tensorflow as tf
 from tensorflow.keras import Input
 import glob
 from tools.tfrecords import load_tfrecord_nn1
-from models.nn1 import CustomBertLayer, TransformerBlock, ClassificationBlock
+from models.nn1 import (CustomBertLayer, TransformerBlock, 
+                        ClassificationBlock)
 from pathlib import Path
 
 # Define folder to save model graph
@@ -38,9 +39,9 @@ ds = load_tfrecord_nn1(filenames=fnames, compression_type='GZIP')
 history = model.fit(ds.batch(1), epochs=2, verbose=1) 
 
 # TO DOS:
-# Fix batch size issue - maybe no batching? 
 # Add logging
 # Add printing examples
 # Add prefetch
 # Add parallelization options
-
+# Batch size
+# Add take arguments

@@ -11,6 +11,7 @@ FIG_FILE = str(FIG_PATH / 'nn1.png')
 # Define encoder model specs
 encoder_model = TFDistilBertModel.from_pretrained('distilbert-base-uncased')
 
+
 class CustomBertLayer(layers.Layer):
     ''' Custom BERT Layer supporting 4D input '''
     def __init__(self, model=encoder_model, name=None, trainable=True):

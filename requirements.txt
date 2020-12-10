@@ -1,4 +1,6 @@
 tensorflow==2.3.0
+pandas==1.1.5
 zstd
 fasttext
 transformers
+pydot
