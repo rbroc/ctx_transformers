@@ -1,106 +1,219 @@
-import pandas as pd
-import tensorflow as tf
+import pandas as pd 
 import numpy as np
-import seaborn as sns
-from matplotlib import pyplot as plt
-from tools.tfrecords import save_tfrecord_nn1
-from tools.preprocess import update_aggregates
+import tensorflow as tf
+from pathlib import Path
+import os
+import pickle as pkl
+from tensorflow.data import TFRecordDataset
+from tensorflow.train import BytesList
+from tensorflow.train import Example, Features, Feature
+from tensorflow.io import FixedLenFeature
+from IPython.display import clear_output
+import abc
+
+#### Feature spec
+
+FEATURE_DESCRIPTION_SIMPLE = {
+    'input_ids': FixedLenFeature([], tf.string),
+    'attention_mask': FixedLenFeature([], tf.string),
+    'label': FixedLenFeature([], tf.int64),
+}
 
 
-# Define useful variables for train/test split
-x_cols = ['input_ids', 'attention_mask']
-group_col = 'author'
-y_col = 'label_subreddit'
-ds_cols = ['author', 'input_ids', 'attention_mask', 'one_hot_subreddit']
-
-# Define useful variables for tensorflow dataset for NN1
-input_names = ['input_ids', 'attention_mask']
-output_names = ['one_hot_subreddit']
-types = (tf.int32, tf.int32), (tf.int32)
+FEATURE_DESCRIPTION_TRIPLET = {
+    'input_ids': FixedLenFeature([], tf.string),
+    'attention_mask': FixedLenFeature([], tf.string)
+}
 
 
-def plot_subreddit_distribution(d, save=False, fname=None):
-    fig, ax = plt.subplots(figsize=(25,3))
-    ax.axvline(250, linestyle='--', color='grey')
-    sns.barplot(x=d['label_subreddit'].value_counts().index, \
-                y=f['label_subreddit'].value_counts().values, \
-                color='darkorange')
-    plt.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
-    if save:
-        plt.savefig(fname)
+######### SIMPLE NETWORK #########
+
+def _make_example_simple_nn1(input_ids, attention_mask, label):
+    ''' Example serializer'''
+    input_ids_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(input_ids).numpy(),
+        ])
+    )
+    attention_mask_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(attention_mask).numpy(),
+        ])
+    )
+
+    label_feature = Feature(int64_list=tf.train.Int64List(value=[label]))
+
+    features = Features(feature={
+        'input_ids': input_ids_feature,
+        'attention_mask': attention_mask_feature,
+        'label': label_feature,
+    }) 
+
+    example = Example(features=features)
+    return example.SerializeToString()
+
+
+def _map_fn_simple_nn1(x, y):
+    ''' Maps read example function to whole dataset'''
+    tf_string = tf.py_function(func=_make_example_simple_nn1, 
+                               inp=[x[0], x[1], y], 
+                               Tout=tf.string)
+    return tf_string
+
+
+def save_tfrecord_simple_nn1(dataset, filename=None, 
+                      shard=False, n_shards=20, 
+                      path='datasets/test/',
+                      compression=None):
+    ''' Saves tfrecord using functions defined above'''
+    dataset = dataset.map(_map_fn_simple_nn1)
+    if shard:
+        dataset = dataset.enumerate()
+        dataset = dataset.apply(tf.data.experimental.group_by_window(
+        lambda i, _: i % n_shards, 
+        lambda k, d: _reduce_fn(k, d, compression, n_shards, path), 
+        tf.int64.max
+        ))
+        for s in dataset:
+            clear_output(wait=True)
+            print(f'Saving {s} ...')
     else:
-        plt.show()
+        writer = tf.data.experimental.TFRecordWriter(path + filename)
+        writer.write(dataset.map(lambda _, x: x))
 
 
-def split_dataset(df, splitobj, dev=False):
-
-    splits = list(splitobj.split(X=df[x_cols].values, 
-                                    y=df[y_col].values, 
-                                    groups=df[group_col].values))
-    train_idx, test_idx = list(splits[0][0]), list(splits[0][1])
-    train = update_aggregates(df.iloc[train_idx])
-    test = update_aggregates(df.iloc[test_idx])
-    print(f'There are {train.shape[0]} examples, \
-            {train.author.nunique()} unique users in the training set')
-    print(f'There are {test.shape[0]} examples, \
-            {test.author.nunique()} unique users in the test set')
-    if dev:
-        dev = df.iloc[dev_idx]
-        dev_idx = update_aggregates(list(set(range(df.shape[0])) - 
-                                         set(train_idx + test_idx)))
-        print(f'There are {dev.shape[0]} examples, \
-             {dev.author.nunique()} unique users in the validation set')
-        return train, test, dev
-    else:
-        return train, test
+def _parse_fn_simple_nn1(example):
+    example = tf.io.parse_single_example(example, FEATURE_DESCRIPTION_SIMPLE)
+    input_ids = tf.io.parse_tensor(example['input_ids'], tf.int32)
+    attention_mask = tf.io.parse_tensor(example['attention_mask'], tf.int32)
+    label = tf.cast(example['label'], tf.int32)
+    return dict(zip(['input_ids', 'attention_mask'], [input_ids, attention_mask])), \
+           dict(zip(['label'], [label]))
 
 
-def plot_split_stat(train, test, dev=None, save=False, fname=None):
-    ncol = 3 if dev else 2
-    fig, ax = plt.subplots(nrows=1, ncols=ncol, figsize=(10,2), sharex=True)
-    for a in ax:
-        a.set_xscale('log')
-        a.set_xlabel('# users')
-        a.set_ylabel('# posts')
-    sns.histplot(train[['author','user_posts_count']].groupby('author').aggregate('first'), \
-                 ax=ax[0], bins=50, legend=None)
-    ax[0].set_title('train')
-    sns.histplot(test[['author','user_posts_count']].groupby('author').aggregate('first'), \
-                 ax=ax[1], bins=50, legend=None)
-    ax[1].set_title('test')
-    ax[1].set_ylabel('')
-    if dev:
-        sns.histplot(dev[['author','user_posts_count']].groupby('author').aggregate('first'), \
-                     ax=ax[2], bins=50, legend=None)
-        ax[2].set_title('dev')
-        ax[2].set_ylabel('')
-    plt.tight_layout()
-    if fname:
-        plt.show()
-    else:
-        plt.savefig(fname)
+def load_tfrecord_simple_nn1(filenames, **kwargs):
+    dataset = tf.data.TFRecordDataset(filenames, **kwargs)
+    return dataset.map(_parse_fn_simple_nn1)
 
 
-def _stack_fn(x):
-    return [np.vstack(np.array(x))]
+######### TRIPLET LOSS NETWORK #########
 
+def _make_example_triplet_nn1(input_ids, attention_mask):
+    ''' Example serializer'''
+    input_ids_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(input_ids).numpy(),
+        ])
+    )
+    attention_mask_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(attention_mask).numpy(),
+        ])
+    )
+    features = Features(feature={
+        'input_ids': input_ids_feature,
+        'attention_mask': attention_mask_feature
+    }) 
+    example = Example(features=features)
+    return example.SerializeToString()
 
-def stack_examples(datasets):
-    stacked_ds = []
-    for d in datasets:
-        stacked_ds.append(d[ds_cols].groupby('author').aggregate(_stack_fn).reset_index())
-    return stacked_ds
-
-
-def _nn1_gen(ds):
-    for i in range(ds.shape[0]):
-        yield tuple( [ds[inpn].iloc[i][0] for inpn in input_names] ), \
-              ds[output_names[0]].iloc[i][0]
-
-
-def save_dataset(ds, path, **kwargs):
-    ds = tf.data.Dataset.from_generator(generator=lambda: _nn1_gen(ds), 
-                                        output_types=types)
-    save_tfrecord_nn1(ds, path, **kwargs)
-    return ds
     
+def _map_fn_triplet_nn1(x, y):
+    ''' Maps read example function to whole dataset'''
+    tf_string = tf.py_function(func=_make_example_triplet_nn1, 
+                               inp=[x[0], x[1]], 
+                               Tout=tf.string)
+    return tf_string
+
+
+def save_tfrecord_triplet_nn1(dataset, filename=None, 
+                      shard=False, n_shards=20, 
+                      path='datasets/test/',
+                      compression=None):
+    ''' Saves tfrecord using functions defined above'''
+    dataset = dataset.map(_map_fn_triplet_nn1)
+    if shard:
+        dataset = dataset.enumerate()
+        dataset = dataset.apply(tf.data.experimental.group_by_window(
+        lambda i, _: i % n_shards, 
+        lambda k, d: _reduce_fn(k, d, compression, n_shards, path), 
+        tf.int64.max
+        ))
+        for s in dataset:
+            clear_output(wait=True)
+            print(f'Saving {s} ...')
+    else:
+        writer = tf.data.experimental.TFRecordWriter(path + filename)
+        writer.write(dataset.map(lambda _, x: x))
+
+def _parse_fn_triplet_nn1(example):
+    example = tf.io.parse_single_example(example, FEATURE_DESCRIPTION_TRIPLET)
+    input_ids = tf.io.parse_tensor(example['input_ids'], tf.int32)
+    attention_mask = tf.io.parse_tensor(example['attention_mask'], tf.int32)
+    return dict(zip(['input_ids', 'attention_mask'], [input_ids, attention_mask]))
+
+
+def load_tfrecord_triplet_nn1(filenames, **kwargs):
+    dataset = tf.data.TFRecordDataset(filenames, **kwargs)
+    return dataset.map(_parse_fn_triplet_nn1)
+
+
+
+def _reduce_fn(key, dataset, compression, n_shards, path):
+    ''' Shards dataset'''
+    str2 = tf.strings.join([tf.strings.as_string(key), 
+                            '-of-', str(n_shards-1), '.tfrecord'])
+    filename = tf.strings.join([path, str2])    
+    writer = tf.data.experimental.TFRecordWriter(filename, 
+                                                 compression_type=compression)
+    writer.write(dataset.map(lambda _, x: x))
+    return tf.data.Dataset.from_tensors(filename)
+
+
+
+######################## DRAFT STRUCTURE ########################
+# Consider making tools/tfrecords subfolder with base classes and specific classes
+
+class TFRecordMaker(metaclass=abc.ABCMeta):
+    ''' Metaclass to save TFrecords '''
+
+    def __init__(self, fspec, dataset):
+        self.fspec = fspec
+        self.dataset = dataset
+
+    @abc.abstractmethod
+    def make_example(self):
+        pass
+
+    @abc.abstractmethod
+    def map_fn(self):
+        pass
+
+
+    def _reduce_fn(self, key,
+                   compression, 
+                   n_shards, path):
+        fname = tf.strings.join([tf.strings.as_string(key), 
+                                '-of-', 
+                                str(n_shards-1), 
+                                '.tfrecord'])
+        fpath = tf.strings.join([path, fname])    
+        writer = tf.data.experimental.TFRecordWriter(fpath, 
+                                                     compression_type=compression)
+        writer.write(self.dataset.map(lambda _, x: x))
+        return tf.data.Dataset.from_tensors(fpath)
+    
+    @abc.abstractmethod
+    def save_tfrecord(self):
+        pass
+
+
+class TFRecordLoader(metaclass=abc.ABCMeta):
+
+    @abc.abstractmethod
+    def parse_fn(self):
+        pass
+
+    @abc.abstractmethod
+    def return_tfrecord(self):
+        pass

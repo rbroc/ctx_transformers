@@ -5,8 +5,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 import os
+from IPython.display import clear_output
 import itertools
-import timeit
 
 
 def merge_csv(dir, sep='\t'):
@@ -14,6 +14,7 @@ def merge_csv(dir, sep='\t'):
     path = Path(dir)
     flist = os.listdir(dir)
     for idx, f in enumerate(flist):
+        clear_output(wait=True)
         print(f'Reading file {idx+1} out of {len(flist)}')
         try:
             subdf = pd.read_csv(str(path/f), sep=sep)
@@ -64,7 +65,7 @@ def update_aggregates(data, metrics='all'):
 
 def plot_aggregates(data, figsize=(12,15), vlines=None, 
                     colors=None, bins=None, log=None, nrows=4, 
-                    ncols=1, save=False, fname=None, **kwargs):
+                    ncols=1, **kwargs):
     ''' Plot all aggregate metrics '''
     mdict = {'user_posts_count': ['author', '# posts', '# users'], 
              'user_nr_unique_subreddits':['author', '# subreddits', '# users'],
@@ -87,10 +88,7 @@ def plot_aggregates(data, figsize=(12,15), vlines=None,
         ax[ax_idx[idx]].set_ylabel(mdict[m][2])
         ax[ax_idx[idx]].legend('')
     plt.tight_layout()
-    if save:
-        plt.savefig(fname)
-    else:
-        plt.show()
+    plt.show()
 
 
 def log_size(data, sdict, name, save_file=None):
@@ -102,38 +100,3 @@ def log_size(data, sdict, name, save_file=None):
     if save_file is not None:
         json.dump(sdict, open(save_file, 'w'))
     return sdict
-
-
-def encode_posts(d, tokenizer):
-    idxs = list(np.arange(0, d.shape[0], 100000)) + [d.shape[0]]
-    start = timeit.default_timer() 
-    timestamp = start
-    for i in range(len(idxs) - 1):
-        print(f'Timestamp previous step {timestamp - start}')
-        print(f'Encoding posts {idxs[i]} to {idxs[i+1]}  \
-                out of {d.shape[0]}')
-        tokenized = d['selftext'][idxs[i]:idxs[i+1]].apply(lambda x: tokenizer.encode_plus(' '.join(x.split()[:400]), 
-                                                                                            truncation=True, 
-                                                                                            padding='max_length'))
-        if i == 0:
-            tokdf = pd.DataFrame(tokenized)
-        else:
-            tokdf = pd.concat([tokdf, pd.DataFrame(tokenized)], 
-                               ignore_index=True)
-        timestamp = timeit.default_timer()
-    d['input_ids'] = tokdf['selftext'].apply(lambda x: x['input_ids'])
-    d['attention_mask'] = tokdf['selftext'].apply(lambda x: x['attention_mask'])
-    return d
-
-def plot_size_curve(sdict, save=False, fname=None):
-    fig, ax = plt.subplots(ncols=3, figsize=(10,4), sharex=True)
-    for idx, metric in enumerate(['users', 'posts', 'subreddits']):
-        sns.lineplot(x=sdict['names'], y=sdict[metric], ax=ax[idx])
-        ax[idx].set_ylabel(metric)
-        ax[idx].set_yscale('log')
-        ax[idx].set_xticklabels(sdict['names'], rotation=90)
-    plt.tight_layout()
-    if save:
-        plt.savefig(fname)
-    else:
-        plt.show()

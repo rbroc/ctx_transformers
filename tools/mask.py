@@ -9,8 +9,7 @@ def _compute_mask_perc(data, perclist):
     mask_cnt = []
     for i in range(len(perclist) - 1):
         mask_cnt += [perclist[i]] * cnt
-    mask_cnt += [perclist[-1]] * (data.author.nunique() - 
-                                  (cnt*(len(perclist)-1)))
+    mask_cnt += [perclist[-1]] * (data.author.nunique() - (cnt*(len(perclist)-1)))
     random.seed(0)
     random.shuffle(mask_cnt)
     map_dict = dict(zip(data.author.unique(), mask_cnt))
