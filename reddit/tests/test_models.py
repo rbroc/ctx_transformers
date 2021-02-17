@@ -6,7 +6,7 @@ import pytest
 
 def test_batch_encoder():
     # Read the examples
-    with open('data/posts.txt', 'r') as fh:
+    with open('data/sample_posts.txt', 'r') as fh:
         posts = fh.readlines()
     posts = [p.strip('\n') for p in posts]
     n_posts_true = len(posts)
