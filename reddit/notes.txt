@@ -1,6 +1,4 @@
-- Move baseline.py?
-- Change package name :D 
-- Tolerance set to 5e-7
+- Push to github
 - Sample_posts
 - Add loss and metrics computations elsewhere
 - Refactor training functions
@@ -8,3 +6,8 @@
 - Enable logging of each example
 - Refactor preprocessing file
 - Reverse dataset at save
+
+
+- Move baseline.py?
+- Change package name :D 
+- Tolerance set to 5e-7
