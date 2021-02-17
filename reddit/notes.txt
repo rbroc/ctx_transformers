@@ -1,0 +1,10 @@
+- Move baseline.py?
+- Change package name :D 
+- Tolerance set to 5e-7
+- Sample_posts
+- Add loss and metrics computations elsewhere
+- Refactor training functions
+- Refactor logging 
+- Enable logging of each example
+- Refactor preprocessing file
+- Reverse dataset at save
