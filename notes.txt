@@ -1,0 +1,21 @@
+# Next
+# Check loading, creation, etc
+# Add model and optimizer logger
+
+To dos:
+- Add docstrings
+- Refactor training functions
+- Refactor preprocessing file
+- Reverse dataset at save
+- Same for FFN
+- Add a test for the loss function (check losses, encodings, etc.)
+
+Long-term
+- Change package name !!!
+- Move baseline.py?
+- Tolerance set to 5e-7
+- Add option to compute average of all token encodings
+
+Notes:
+Key info: 
+# Margin, grad accumulation, model type
