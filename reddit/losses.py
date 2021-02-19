@@ -18,8 +18,8 @@ class TripletLoss(ABC):
         super().__init__()
     
     @abstractmethod
-    ''' Computes loss '''
     def call(self):
+        ''' Computes loss '''
         pass
 
 
