@@ -1,14 +1,16 @@
 # Next
-# Check loading, creation, etc
-# Add model and optimizer logger
+# Make sure self works
+# Check carefully
+# Maybe move checkpoints to separate file?
 
 To dos:
-- Add docstrings
-- Refactor training functions
+- Make general to number of inputs
+- Add docstrings to Logger and Checkpoints
 - Refactor preprocessing file
 - Reverse dataset at save
 - Same for FFN
 - Add a test for the loss function (check losses, encodings, etc.)
+- Add test for trainer and loaders
 
 Long-term
 - Change package name !!!

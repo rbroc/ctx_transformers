@@ -3,161 +3,152 @@ from tensorflow.keras.utils import Progbar
 import json
 from pathlib import Path
 import numpy as np
-from reddit import Logger
-
-# Next
-# Check loading, creation, etc
-# Add model and optimizer logger
+from reddit import (Logger, ModelCheckpoint,
+                    OptimizerCheckpoint)
+                    
 
 class Trainer:
-    ''' Trainer class 
+    ''' Trainer 
     Args:
-        model: 
+        model: model object
         loss_object: loss object
         optimizer: optimizer object
         strategy (tf.Strategy): distribution strategy 
+        n_epochs (int): number of training epochs
+        examples_per_epoch (int): number of training examples
+        checkpoint_every (int): how often (in examples) model 
+            and optimizer weights should be saved
+        log_every (int): how often (in examples) training/test
+            variables (loss, metrics, etc.) should be logged
+        start_epoch (int): which epoch to start training from
+        no_load (bool): if start_epoch > 0, defines whether 
+            model and optimizer weights should be loaded.
+            Default is False (model/optimizer weights loaded)
+        train_vars (list): name of outputs from model to be 
+            logged at training. Should have same order as model 
+            outputs and contain at least 'losses' and 'metrics'
+            If None, set to ['losses', 'metrics'].
+        test_vars (list): name of outputs from model to be
+            logged at training. Should have the same order as model
+            outputs and contain at least 'test_losses' and 
+            'test_metrics'. If None, set to ['test_losses', 
+            'test_metrics'].
     '''
     def __init__(self, model, 
                  loss_object, optimizer, strategy, 
-                 n_epochs,
-                 examples_per_epoch,
-                 checkpoint_every=None,
-                 log_every=100,
-                 start_epoch=0):
+                 n_epochs, examples_per_epoch,
+                 checkpoint_every=None, log_every=100,
+                 start_epoch=0, no_load=False,
+                 train_vars=None, test_vars=None,
+                 checkpoint_device='/job:localhost'):
         self.model = model
         self.loss_object = loss_object
         self.optimizer = optimizer
         self.strategy = strategy
         self.n_epochs = n_epochs
-        self.start_epoch = start_epoch
         self.examples_per_epoch = examples_per_epoch
         self.checkpoint_every = checkpoint_every or examples_per_epoch
-        train_vars = ['losses', 'metrics', 
-                      'd_pos', 'd_neg', 'd_anch']
-        test_vars = ['test_losses', 'test_metrics']
-        self.logger = Logger(train_vars, test_vars, log_every)
+        if train_vars:
+            if (not isinstance(train_vars, list)) or (len(train_vars) < 2):
+                raise ValueError('train_vars should have at least two '
+                                  'elements (loss, metric)')
+        if test_vars:
+            if (not isinstance(test_vars, list)) or (len(test_vars) < 2):
+                raise ValueError('train_vars should have at least two '
+                                  'elements (test loss, test metric)')
+        self.train_vars = train_vars or ['losses', 'metrics']
+        self.test_vars = test_vars or ['test_losses', 'test_metrics']
+        self.logger = Logger(self)
+        self.start_epoch = start_epoch
+        if (start_epoch > 0) and (no_load is False):
+            self.load_epoch = start_epoch - 1
+        else:
+            self.load_epoch = None
+        self.model_ckpt = ModelCheckpoint(self, checkpoint_device)
+        self.opt_ckpt = OptimizerCheckpoint(self)
 
 
     def _train_step(self, batch_in_replica):
+        ''' Define training step (single replica) '''
         with tf.GradientTape() as tape:
-            encodings, n_posts = self.model(batch_in_replica)
-            l, m, d_pos, d_neg, d_anch = self.loss_object(encodings, 
-                                                          n_posts)
-        gradients = tape.gradient(l, self.model.trainable_variables)
+            model_out = self.model(batch_in_replica)
+            loss_out = self.loss_object(*model_out)
+        gradients = tape.gradient(loss_out[0], self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients,
                                            self.model.trainable_variables))
-        return l, m, d_pos, d_neg, d_anch
+        return loss_out
+
 
     def _test_step(self, batch_in_replica):
-        encoding, n_posts = self.model(batch_in_replica)
-        l, m = self.loss_object(encoding, n_posts)[:2]
-        return l, m
+        ''' Define test step (single replica) '''
+        model_out = self.model(batch_in_replica)
+        test_loss_out = self.loss_object(*model_out)[:2]
+        return test_loss_out
+
 
     @tf.function
-    def _run_train_step(self, global_batch):
-        pr_l, pr_m, \
-        pr_d_pos, pr_d_neg, pr_d_anch = self.strategy.run(self._train_step,
-                                                          args=(global_batch,))
-        ls, ms = pr_l.values, pr_m.values
-        d_poss = pr_d_pos.values
-        d_negs = pr_d_neg.values
-        d_anchs = pr_d_anch.values
-        return ls, ms, d_poss, d_negs, d_anchs
+    def _run_distributed_step(self, global_batch, train=True):
+        ''' Run training/test step on all replicas '''
+        fn = self._train_step if train else self._test_step
+        step_outs = self.strategy.run(fn, args=(global_batch,))
+        return [getattr(o,'values') for o in step_outs]
 
-    @tf.function
-    def _run_test_step(self, global_batch):
-        pr_l, pr_m = self.strategy.run(self._test_step, args=(global_batch,))
-        ls, ms = pr_l.values, pr_m.values
-        return ls, ms
 
     def _run_train_epoch(self, epoch, dataset_train):
-        print(f'Epoch {epoch+1} of {self.n_epochs}')
+        ''' Run one training epoch 
+        Args:
+            epoch (int): epoch number
+            dataset_train (DistributedDataset): training set
+        '''
         pb = Progbar(self.examples_per_epoch, 
                      stateful_metrics=['loss', 'correct'])
+
         for n, example in enumerate(dataset_train):
-            outs = self._run_train_step(example)
-            self.logger.log(list(outs), epoch, n)
-            loss, metric = tf.reduce_mean(outs[0]), tf.reduce_mean(outs[1])
+            outs = self._run_distributed_step(example)
+            self.logger.log(list(outs), epoch, n+1)
+            loss, metric = tf.reduce_mean(outs[0]).numpy(), \
+                            tf.reduce_mean(outs[1]).numpy()
             pb.add(1, values=[('loss', loss), ('correct', metric)])
-        avg_loss = np.mean(self.logger.logdict['losses'])
-        avg_metric = np.mean(self.logger.logdict['metrics'])
-        print(f'Mean loss: {avg_loss}; '
-              f'Mean metric: {avg_metric}')
+
+            if ((n+1) % self.checkpoint_every == 0) or \
+                (n+1 == self.examples_per_epoch):
+                self.model_ckpt.save(epoch, n+1)
+                self.opt_ckpt.save(epoch, n+1)
+
+        avg_loss = tf.reduce_mean(self.logger.logdict['losses']).numpy()
+        avg_metric = tf.reduce_mean(self.logger.logdict['metrics']).numpy()
+        print(f'Mean loss: {avg_loss}; Mean metric: {avg_metric}')
 
 
-    def _run_test_epoch(self, epoch, dataset_val):
-        for example in dataset_val:
-            outs = self._run_test_step(example)
+    def _run_test_epoch(self, epoch, dataset_test):
+        ''' Run one validation/test epoch 
+        Args:
+            epoch (int): epoch number 
+            dataset_val (DistributedDataset): validation/test set 
+        '''
+        for example in dataset_test:
+            outs = self._run_distributed_step(example, train=False)
             self.logger.log(list(outs), epoch, train=False)
+
         self.logger._save(epoch)
-        avg_loss = np.mean(self.logger.logdict['test_losses'])
-        avg_metric = np.mean(self.logger.logdict['test_metrics'])
-        print(f'Mean validation loss: {avg_loss}; '
-              f'Mean validation metric: {avg_metric}')
+        avg_loss = tf.reduce_mean(self.logger.logdict['test_losses']).numpy()
+        avg_metric = tf.reduce_mean(self.logger.logdict['test_metrics']).numpy()
+        print(f'Mean test loss: {avg_loss}; Mean test metric: {avg_metric}')
 
 
-    def train(self, dataset_train, dataset_val):
-        for epoch in range(self.start_epoch, 
-                           self.n_epochs):
-            shuffled = dataset_train.shuffle(self.examples_per_epoch)
-            distributed = self.strategy.experimental_distribute_dataset(shuffled) 
+    def train(self, dataset_train, dataset_test, shuffle=True):
+        ''' Run full training 
+        Args:
+            dataset_train (Dataset): training set (not distributed)
+            dataset_val (DistributedDataset): validation set    
+        '''
+        for epoch in range(self.start_epoch, self.n_epochs):
+            if shuffle:
+                dataset = dataset_train.shuffle(self.examples_per_epoch)
+            else:
+                dataset = dataset_train
+            distributed = self.strategy.experimental_distribute_dataset(dataset) 
+            print(f'Epoch {epoch+1}/{self.n_epochs}')
             self._run_train_epoch(epoch, distributed)
-            self._run_test_epoch(epoch, dataset_val)
+            self._run_test_epoch(epoch, dataset_test)
             self.logger._reset()
-
-
-''' 
-    for epoch in range(int(load)+1,epochs):
-
-      ckpt_epoch_dir = ckpt_dir / f'epoch_{epoch}'
-      opt_epoch_dir = optimizer_dir / f'epoch_{epoch}'
-      pb_i = Progbar(examples, stateful_metrics=['loss', 'correct'])
-
-      
-
-      for x in dataset_train:
-        if (batch % 5000 == 0):
-        log_weights(ckpt_epoch_dir, batch, model)
-        log_optimizer(opt_epoch_dir, batch, optimizer)
-
-      log_weights(ckpt_epoch_dir, batch, model)
-      log_optimizer(opt_epoch_dir, batch, optimizer)
-
-
-
-# Overall loop: 
-# Define model
-# Define loss
-# Define optimizer
-# Initialize trainer
-# Run! 
-
-  with strategy.scope():
-
-    optimizer = create_optimizer(lr, 
-                                 num_train_steps=tot_train_steps,
-                                 num_warmup_steps=warmup_steps)
-    
-    if load:
-      latest = tf.train.latest_checkpoint(f'checkpoints_shuffle_02_10/triplet_loss_{margin}/epoch_{load}')
-      print(f'Loading checkpoint at checkpoint/triplet_loss_{margin}/epoch_{load}...')
-      model.load_weights(latest, options=lh_options)
-
-      opt_wfile = f'optimizers_shuffle_02_10/triplet_loss_{margin}/epoch_{load}/batch_{batch_nr}-of-27113.pkl'
-      opt_weights = pkl.load(file=open(opt_wfile, 'rb'))
-      optimizer._create_all_weights(model.trainable_variables)
-      optimizer.set_weights(opt_weights)
-
-
-  def log_weights(edir, b, model):
-    edir.mkdir(exist_ok=True, parents=True)
-    ckpt_path = edir /  f'batch_{b}-of-{n_train}'
-    model.save_weights(filepath=ckpt_path, options=lh_options)
-  
-  def log_optimizer(edir, b, optimizer):
-    edir.mkdir(exist_ok=True, parents=True)
-    opt_wpath = edir / f'batch_{b}-of-{n_train}.pkl'
-    pkl.dump(file=open(opt_wpath, 'wb'), 
-             obj=optimizer.get_weights())
-
-'''
