@@ -1,10 +1,7 @@
 # Next
+# Write tests for loggers, trainer, new model
 # Check carefully (e.g. that size generalizes, etc.)
-
-To dos:
 - Refactor preprocessing (and reverse dataset at save!)
-- Add a test for the loss function (check losses, encodings, etc.)
-- Add test for trainer and loaders
 
 Long-term
 - Develop viz module
