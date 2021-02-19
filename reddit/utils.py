@@ -27,3 +27,8 @@ def split_dataset(dataset, size=None,
     else:
         d_tuning = dataset.take(tuning)
         return d_tuning, d_train, d_val, d_test
+
+def average_anchor(encodings, n_posts):
+    out = tf.reduce_sum(encodings[:,2:,:], axis=1)
+    out = tf.divide(out, n_posts-2)
+    return out

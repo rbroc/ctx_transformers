@@ -1,20 +1,23 @@
 # Next
-# Check carefully
+# Check carefully (e.g. that size generalizes, etc.)
 
 To dos:
-- Make general to number of inputs
-- Refactor preprocessing file
-- Reverse dataset at save
-- Same for FFN
+- Refactor preprocessing (and reverse dataset at save!)
 - Add a test for the loss function (check losses, encodings, etc.)
 - Add test for trainer and loaders
 
 Long-term
+- Develop viz module
 - Change package name !!!
-- Move baseline.py?
-- Tolerance set to 5e-7
+- Rerun baseline model with new scripts
+- Make dockerfile
+
+Other:
 - Add option to compute average of all token encodings
+- Add gradient accumulation
 
 Notes:
 Key info: 
 # Margin, grad accumulation, model type
+- Tolerance for difference in tests set to 5e-7
+- In FFN anchor is averaged
