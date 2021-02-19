@@ -1,4 +1,5 @@
 # Next
+# Add logging of n_posts / len_posts / or just post id! (check notes)
 # Write tests for loggers, trainer, new model
 # Check carefully (e.g. that size generalizes, etc.)
 - Refactor preprocessing (and reverse dataset at save!)
