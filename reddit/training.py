@@ -15,7 +15,7 @@ class Trainer:
         optimizer: optimizer object
         strategy (tf.Strategy): distribution strategy 
         n_epochs (int): number of training epochs
-        examples_per_epoch (int): number of training examples
+        steps_per_epoch (int): number of training steps/batches
         checkpoint_every (int): how often (in examples) model 
             and optimizer weights should be saved
         log_every (int): how often (in examples) training/test
@@ -36,7 +36,7 @@ class Trainer:
     '''
     def __init__(self, model, 
                  loss_object, optimizer, strategy, 
-                 n_epochs, examples_per_epoch,
+                 n_epochs, steps_per_epoch,
                  checkpoint_every=None, log_every=100,
                  start_epoch=0, no_load=False,
                  train_vars=None, test_vars=None,
@@ -46,8 +46,8 @@ class Trainer:
         self.optimizer = optimizer
         self.strategy = strategy
         self.n_epochs = n_epochs
-        self.examples_per_epoch = examples_per_epoch
-        self.checkpoint_every = checkpoint_every or examples_per_epoch
+        self.steps_per_epoch = steps_per_epoch
+        self.checkpoint_every = checkpoint_every or steps_per_epoch
         if train_vars:
             if (not isinstance(train_vars, list)) or (len(train_vars) < 2):
                 raise ValueError('train_vars should have at least two '
@@ -100,7 +100,7 @@ class Trainer:
             epoch (int): epoch number
             dataset_train (DistributedDataset): training set
         '''
-        pb = Progbar(self.examples_per_epoch, 
+        pb = Progbar(self.steps_per_epoch, 
                      stateful_metrics=['loss', 'correct'])
 
         for n, example in enumerate(dataset_train):
@@ -111,7 +111,7 @@ class Trainer:
             pb.add(1, values=[('loss', loss), ('correct', metric)])
 
             if ((n+1) % self.checkpoint_every == 0) or \
-                (n+1 == self.examples_per_epoch):
+                (n+1 == self.steps_per_epoch):
                 self.model_ckpt.save(epoch, n+1)
                 self.opt_ckpt.save(epoch, n+1)
 
@@ -144,7 +144,7 @@ class Trainer:
         '''
         for epoch in range(self.start_epoch, self.n_epochs):
             if shuffle:
-                dataset = dataset_train.shuffle(self.examples_per_epoch)
+                dataset = dataset_train.shuffle(self.steps_per_epoch)
             else:
                 dataset = dataset_train
             distributed = self.strategy.experimental_distribute_dataset(dataset) 

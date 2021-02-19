@@ -1,11 +1,8 @@
 # Next
-# Make sure self works
 # Check carefully
-# Maybe move checkpoints to separate file?
 
 To dos:
 - Make general to number of inputs
-- Add docstrings to Logger and Checkpoints
 - Refactor preprocessing file
 - Reverse dataset at save
 - Same for FFN

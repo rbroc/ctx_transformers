@@ -21,21 +21,35 @@ class Logger:
         self._reset()
 
     def _reset(self):
+        ''' Initialize/empties metrics dictionary '''
         for v in self.trainer.train_vars + self.trainer.test_vars:
             self.logdict[v] = []
     
-    def log(self, data, epoch, n=None, train=True):
-        for idx, d in enumerate(data):
+    def log(self, vars, epoch, batch=None, train=True):
+        ''' Logs metrics dictionary 
+        Args:
+            vars (list): metrics to log
+            epoch (int): number of epoch
+            batch (int): batch number (1 to n steps)
+            train (bool): defines whether logging as 
+                part of training. If so, saves file at
+                specified intervals
+         '''
+        for idx, d in enumerate(vars):
             fv = [v.numpy() for v in d] 
             if train:
                 self.logdict[self.trainer.train_vars[idx]] += fv
-                if (n == self.trainer.examples_per_epoch) or \
-                    (n % self.trainer.log_every == 0):
+                if (batch == self.trainer.steps_per_epoch) or \
+                    (batch % self.trainer.log_every == 0):
                     self._save(epoch)
             else:
                 self.logdict[self.trainer.test_vars[idx]] += fv
 
     def _save(self, epoch):
+        ''' Saves dictionary 
+        Args:
+            epoch (int): epoch number 
+        '''
         outfile = Path(f'epoch-{str(epoch)}') / 'log.json'
         outpath = str(self.outfolder / outfile)
         with open(outpath, 'w') as fh:
@@ -58,10 +72,12 @@ class Checkpoint(ABC):
 
     @abstractmethod
     def _load(self):
+        ''' Loads checkpoint '''
         pass
     
     @abstractmethod
     def save(self):
+        ''' Saves checkpoint '''
         pass
 
 
@@ -79,14 +95,20 @@ class ModelCheckpoint(Checkpoint):
             self._load()
 
     def _load(self):
+        ''' Loads model checkpoint '''
         epoch_pattern = f'epoch-{self.trainer.load_epoch}'
         file = tf.train.latest_checkpoint(str(self.model_path/epoch_pattern))
         self.trainer.model.load_weights(file, options=self.options)
 
-    def save(self, epoch, batch): 
+    def save(self, epoch, batch):
+        ''' Saves model checkpoint 
+        Args:
+            epoch (int): epoch number
+            batch (int): batch number (1 to number of steps)
+        ''' 
         epoch_dir = self.model_path / f'epoch-{epoch}'
         epoch_dir.mkdir(exist_ok=True, parents=True)
-        file_pattern = f'batch-{batch}-of-{self.trainer.examples_per_epoch}'
+        file_pattern = f'batch-{batch}-of-{self.trainer.steps_per_epoch}'
         out_pattern = epoch_dir / file_pattern
         self.trainer.model.save_weights(filepath=out_pattern, options=self.options)
 
@@ -102,6 +124,7 @@ class OptimizerCheckpoint(Checkpoint):
             self._load()
 
     def _load(self):
+        ''' Loads optimizer checkpoint '''
         epoch_pattern = f'epoch-{self.trainer.load_epoch}'
         opt_files = glob(str(self.model_path / epoch_pattern))
         opt_idx = np.argmax([int(f.split('/')[-1].split('-')[1]) for f in opt_files])
@@ -111,9 +134,14 @@ class OptimizerCheckpoint(Checkpoint):
         self.trainer.optimizer.set_weights(opt_weights)
 
     def save(self, epoch, batch):
+        ''' Saves optimizer checkpoint 
+        Args:
+            epoch (int): epoch number
+            batch (int): batch number (1 to n training steps)
+        '''
         epoch_dir = self.model_path / f'epoch-{epoch}'
         epoch_dir.mkdir(exist_ok=True, parents=True)
-        batch_file = f'batch-{batch}-of-{self.trainer.examples_per_epoch}.pkl'
+        batch_file = f'batch-{batch}-of-{self.trainer.steps_per_epoch}.pkl'
         outfile = str(epoch_dir /  batch_file)
         with open(outfile, 'wb') as fh:
             pkl.dump(file=fh, obj=self.trainer.optimizer.get_weights())
