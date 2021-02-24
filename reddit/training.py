@@ -105,7 +105,7 @@ class Trainer:
 
         for n, example in enumerate(dataset_train):
             outs = self._run_distributed_step(example)
-            self.logger.log(list(outs), epoch, n+1, example['id'])
+            self.logger.log(list(outs), epoch, example['id'].values, n+1)
             loss, metric = tf.reduce_mean(outs[0]).numpy(), \
                             tf.reduce_mean(outs[1]).numpy()
             pb.add(1, values=[('loss', loss), ('correct', metric)])
@@ -128,7 +128,7 @@ class Trainer:
         '''
         for example in dataset_test:
             outs = self._run_distributed_step(example, train=False)
-            self.logger.log(list(outs), epoch, example_id=example['id'],
+            self.logger.log(list(outs), epoch, example['id'].values,
                             train=False)
 
         self.logger._save(epoch)

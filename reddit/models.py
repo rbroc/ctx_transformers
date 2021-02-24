@@ -56,6 +56,7 @@ class BatchTransformerFFN(BatchTransformer):
         trainable (bool): whether to freeze transformer weights
         name (str): model name. If not provided, concatenates
             path_to_weights, n_dense, dim, activation
+        kwargs: kwargs for layers.Dense call
     '''
     def __init__(self,
                  transformer, path_to_weights, 
@@ -65,13 +66,24 @@ class BatchTransformerFFN(BatchTransformer):
                  trainable=False,
                  name=None,
                  **kwargs):
-        if isinstance(dims, int):
+
+        if isinstance(dims,list):
+            if len(dims) != n_dense:
+                raise ValueError('length of dims does '
+                                 'match number of layers')
+        elif isinstance(dims, int):
             dims = [dims] * n_dense
+        self.dims = dims
+        if isinstance(activations,list):
+            if len(activations) != n_dense:
+                raise ValueError('length of activations does '
+                                 'match number of layers')
         if not isinstance(activations, list):
             activations = [activations] * n_dense
+        self.activations = activations
         if name is None:
             name = f'''{path_to_weights}_layers-{n_dense}_'
-                       dim-{'_'join(dims)}_{'_'join(activations)}'''
+                       dim-{'_'.join(dims)}_{'_'.join(activations)}'''
         super().__init__(transformer, path_to_weights, name, 
                          trainable)
         self.dense_layers = keras.Sequential([Dense(dims[i], activations[i], **kwargs)
@@ -79,9 +91,10 @@ class BatchTransformerFFN(BatchTransformer):
         self.average_anchor_layer = Lambda(lambda x: average_anchor(*x))
         self.concat_layer = Concatenate(axis=1)
 
+
     def call(self, input):
         encodings, n_posts = super().call(input)
-        avg_anchor = self.average_anchor_layer(encodings, n_posts)
+        avg_anchor = self.average_anchor_layer([encodings, n_posts])
         encodings = self.concat_layer([encodings[:,:2,:], avg_anchor])
         encodings = self.dense_layers(encodings)
         return encodings, n_posts

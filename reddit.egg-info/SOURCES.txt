@@ -1,10 +1,12 @@
 setup.py
 reddit/__init__.py
-reddit/baseline.py
+reddit/logging.py
+reddit/losses.py
 reddit/mask.py
 reddit/models.py
 reddit/preprocess.py
 reddit/tfrecords.py
+reddit/training.py
 reddit/utils.py
 reddit.egg-info/PKG-INFO
 reddit.egg-info/SOURCES.txt

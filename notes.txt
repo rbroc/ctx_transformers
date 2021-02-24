@@ -1,9 +1,13 @@
-# Next
-# Pass id to the logger somehow 
-# Edit input format (so to take dictionary)
-# Write tests for loggers, trainer, new model
-# Check carefully (e.g. that size generalizes, etc.)
-# Refactor preprocessing (and reverse dataset at save!)
+# Next 
+# N_posts not needed (replace with ids)
+# Edit data distribution/splitting function to take dictionary as input
+# Write tests for loggers, trainer
+# Refactor preprocessing
+    - Add id to each example
+    - Expand nr users
+    - Reverse dataset at save
+    - More years/data
+# Add function to check input
 
 Long-term
 - Develop viz module

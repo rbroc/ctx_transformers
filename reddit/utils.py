@@ -5,13 +5,15 @@ def split_dataset(dataset, size=None,
                   tuning=None):
     ''' Split dataset into training, validation and test set 
         Args:
-            dataset (TFDataset): dataset to split
+            dataset (TFDataset): dataset to split (preprocessed and batched)
             size (int): number of examples. If not provided, 
                 it is computed on the fly.
             perc_train (float): percentage of examples in training set
             perc_val (float): percentage of examples in training set
             tuning (optional): if provided, defines number of example for 
                 additional tuning dataset.
+        Returns:
+            tuning, training, valdiation and test set (not distributed yet)
     ''' 
     if size is None:
         size = 0
@@ -29,6 +31,8 @@ def split_dataset(dataset, size=None,
         return d_tuning, d_train, d_val, d_test
 
 def average_anchor(encodings, n_posts):
-    out = tf.reduce_sum(encodings[:,2:,:], axis=1)
-    out = tf.divide(out, n_posts-2)
+    out = tf.reduce_sum(encodings[:,2:,:], axis=1, keepdims=True)
+    n_posts = tf.expand_dims(n_posts-2, -1)
+    n_posts = tf.expand_dims(n_posts, -1)
+    out = tf.divide(out, n_posts)
     return out
