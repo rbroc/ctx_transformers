@@ -27,10 +27,11 @@ class BatchTransformer(keras.Model):
         self.output_signature = tf.float32
 
     def _encode_batch(self, example):
-        mask = tf.reduce_all(tf.equal(example, 0), axis=-1, keepdims=True)
+        mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
+                             axis=-1, keepdims=True)
         mask = tf.cast(mask, tf.float32)
         mask = tf.abs(tf.subtract(mask, 1.))
-        encoding = self.encoder(example).last_hidden_state[:,0,:]
+        encoding = self.encoder(example['input_ids']).last_hidden_state[:,0,:]
         masked_encoding = tf.multiply(encoding, mask)
         n_post = tf.reduce_sum(mask)
         return masked_encoding, n_post
@@ -64,15 +65,15 @@ class BatchTransformerFFN(BatchTransformer):
                  trainable=False,
                  name=None,
                  **kwargs):
-        if name is None:
-            name = f'''{path_to_weights}_layers-{n_dense}_'
-                       dim-{dim}_{activation}'''
-        super().__init__(transformer, path_to_weights, name, 
-                         trainable)
-        if isinstance(dim, int):
+        if isinstance(dims, int):
             dims = [dims] * n_dense
         if not isinstance(activations, list):
             activations = [activations] * n_dense
+        if name is None:
+            name = f'''{path_to_weights}_layers-{n_dense}_'
+                       dim-{'_'join(dims)}_{'_'join(activations)}'''
+        super().__init__(transformer, path_to_weights, name, 
+                         trainable)
         self.dense_layers = keras.Sequential([Dense(dims[i], activations[i], **kwargs)
                                               for i in range(n_dense)])
         self.average_anchor_layer = Lambda(lambda x: average_anchor(*x))

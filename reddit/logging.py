@@ -24,13 +24,17 @@ class Logger:
         ''' Initialize/empties metrics dictionary '''
         for v in self.trainer.train_vars + self.trainer.test_vars:
             self.logdict[v] = []
+        self.logdict['example_id'] = []
+        self.logdict['test_example_id'] = []
     
-    def log(self, vars, epoch, batch=None, train=True):
+    def log(self, vars, epoch, batch=None, example_id=None,
+            train=True):
         ''' Logs metrics dictionary 
         Args:
             vars (list): metrics to log
             epoch (int): number of epoch
             batch (int): batch number (1 to n steps)
+            example_id (int): example id
             train (bool): defines whether logging as 
                 part of training. If so, saves file at
                 specified intervals
@@ -42,8 +46,11 @@ class Logger:
                 if (batch == self.trainer.steps_per_epoch) or \
                     (batch % self.trainer.log_every == 0):
                     self._save(epoch)
+                self.logdict['id'].append(example_id.numpy())
             else:
                 self.logdict[self.trainer.test_vars[idx]] += fv
+                self.logdict['test_id'].append(example_id.numpy())
+
 
     def _save(self, epoch):
         ''' Saves dictionary 
