@@ -54,7 +54,6 @@ class Logger:
         else:
             self.logdict['test_example_ids'] += ids
 
-
     def _save(self, epoch):
         ''' Saves dictionary 
         Args:

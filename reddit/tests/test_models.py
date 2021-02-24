@@ -1,28 +1,8 @@
 import tensorflow as tf
-from transformers import TFDistilBertModel, DistilBertTokenizer
+from transformers import TFDistilBertModel
 from reddit import BatchTransformer, BatchTransformerFFN
 import pytest
-
-def _build_distilbert_input(weights, n_padded=2, n_batch=2, batched_only=False):
-    # Read in files
-    with open('data/sample_posts.txt', 'r') as fh:
-        posts = fh.readlines()
-    posts = [p.strip('\n') for p in posts]
-    n_posts_true = len(posts)
-    tknz = DistilBertTokenizer.from_pretrained(weights)
-    # Tokenize
-    iids = tknz.batch_encode_plus(posts, padding=True)['input_ids']
-    n_tokens = len(iids[0])
-    # Append zeros and batch input
-    iids += [[0]*n_tokens] * n_padded
-    batch_iids = {'input_ids': tf.constant([iids] * n_batch)}
-    iids = tf.constant(iids)
-    if batched_only:
-        return batch_iids, n_posts_true
-    else:
-        mask = tf.constant([1.] * n_posts_true + [0.] * n_padded)
-        mask = tf.expand_dims(mask, 1)
-        return batch_iids, iids, mask, n_posts_true
+from utils import build_distilbert_input
 
 
 def test_batch_encoder():
@@ -33,11 +13,11 @@ def test_batch_encoder():
     # Create the inputs
     n_padded = 2
     n_batch = 2
-    batch_iids, iids, mask, n_posts_true = _build_distilbert_input(weights, 
-                                                                   n_padded, 
-                                                                   n_batch)
+    batch_iids, iids, mask, n_posts_true = build_distilbert_input(weights, 
+                                                                  n_padded, 
+                                                                  n_batch)
     # Pass through batch network
-    batch_encodings, n_posts = batch_model(batch_iids) # remove n_posts
+    batch_encodings, n_posts = batch_model(batch_iids)
     encodings = reference_model(iids).last_hidden_state[:,0,:]
     encodings = tf.multiply(encodings, mask)
     assert tf.reduce_all(tf.equal(n_posts, n_posts_true))
@@ -62,7 +42,7 @@ def test_batch_encoder_ffn():
                                     n_dense=2, dims=dims[i], activations=activations[i],
                                     name=f'test_model_{i}')
         # Catch error
-        batch_iids, n_posts_true = _build_distilbert_input(weights, batched_only=True)
+        batch_iids, n_posts_true = build_distilbert_input(weights, batched_only=True)
         encodings, n_posts = model(batch_iids)
         assert len(model.dense_layers.layers) == 2
         for idx, l in enumerate(model.dense_layers.layers):

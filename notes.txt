@@ -1,13 +1,17 @@
 # Next 
-# N_posts not needed (replace with ids)
-# Edit data distribution/splitting function to take dictionary as input
-# Write tests for loggers, trainer
+# Remove n_posts from output and take from example id
+# Write tests for loss, loggers, trainer
+
 # Refactor preprocessing
     - Add id to each example
     - Expand nr users
     - Reverse dataset at save
     - More years/data
+
+# ENH
+# Edit data distribution/splitting function to take dictionary as input
 # Add function to check input
+# Clean up import
 
 Long-term
 - Develop viz module

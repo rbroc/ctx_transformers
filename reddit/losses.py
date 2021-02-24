@@ -9,16 +9,14 @@ class TripletLoss(ABC):
     Args:
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
-        padded_size (int): number of posts after padding      
     '''
-    def __init__(self, margin, padded_size, name=None):
-        self.name = name or f'triplet_loss_margin-{margin}_posts-{padded_size}'
+    def __init__(self, margin, name=None):
+        self.name = name or f'triplet_loss_margin-{margin}'
         self.margin = margin
-        self.padded_size = padded_size
         super().__init__()
     
     @abstractmethod
-    def call(self):
+    def __call__(self):
         ''' Computes loss '''
         pass
 
@@ -28,12 +26,11 @@ class TripletLossBase(TripletLoss):
     Args:
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
-        padded_size (int): number of posts after padding
     '''
-    def __init__(self, margin, padded_size, name=None):
-        super().__init__(margin, padded_size, name)
+    def __init__(self, margin, name=None):
+        super().__init__(margin, name)
 
-    def _compute_anchor_mean_distance(self, a_encoding, n_posts):   
+    def _compute_anchor_mean_distance(self, a_encoding):   
         ''' Computes mean distance between anchor embeddings '''     
         sqr_enc = tf.reduce_sum(a_encoding*a_encoding, axis=1)
         mask = tf.equal(sqr_enc, 0)
@@ -43,21 +40,22 @@ class TripletLossBase(TripletLoss):
         dists = dists + tf.transpose(sqr_enc)
         dists = tf.transpose(dists * mask) * mask
         dists = tf.linalg.band_part(dists,-1,0)
-        n_valid_dists = self._compute_n_distances(mask)
+        padded_size = a_encoding.shape[-2]
+        n_valid_dists = self._compute_n_distances(mask, padded_size)
         mean_dist = tf.divide(tf.reduce_sum(dists), n_valid_dists)
         return mean_dist
 
-    def _compute_n_distances(self, mask):
+    def _compute_n_distances(self, mask, padded_size):
         ''' Compute number of valid pairwise encodings combinations '''
-        range_dists = tf.range(1, self.padded_size-1)
+        range_dists = tf.range(1, padded_size-1)
         range_valid = tf.cast(range_dists, tf.float32) * mask
         n_valid = tf.reduce_sum(range_valid)
         return n_valid
 
-    def call(self, encodings, n_posts):
+    def __call__(self, encodings, n_posts):
         ''' Computes loss. Also returns distances between encodings '''
         n_enc, p_enc, a_enc = encodings[:,0,:], encodings[:,1,:], encodings[:,2:,:]
-        dist_anch = tf.vectorized_map(self._compute_anchor_mean_distance, elems=a_enc)
+        dist_anch = tf.vectorized_map(self._compute_anchor_mean_distance, elems=a_enc) # how does this work?
         avg_a_enc = average_anchor(encodings, n_posts)
         dist_pos = tf.reduce_sum(tf.square(avg_a_enc - p_enc), axis=1)
         dist_neg = tf.reduce_sum(tf.square(avg_a_enc - n_enc), axis=1)
@@ -73,12 +71,11 @@ class TripletLossFFN(TripletLoss):
     Args:
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
-        padded_size (int): number of posts after padding
     '''    
-    def __init__(self, margin, padded_size, name=None):
-        super().__init__(margin, padded_size, name)
+    def __init__(self, margin, name=None):
+        super().__init__(margin, name)
 
-    def call(self, encodings, posts):
+    def __call__(self, encodings, posts):
         ''' Computes loss '''
         n_enc, p_enc, a_enc = encodings[:,0,:], encodings[:,1,:], encodings[:,2,:]
         dist_pos = tf.reduce_sum(tf.square(a_enc - p_enc), axis=1)
