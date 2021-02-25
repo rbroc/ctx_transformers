@@ -12,11 +12,11 @@ class Logger:
     Args:
         trainer (Trainer): instance of trainer class
     '''
-    def __init__(self, trainer):
+    def __init__(self, trainer, path='..'):
         self.logdict = {}
         self.trainer = trainer
-        self.outfolder = Path('metrics') / self.trainer.model.name
-        self.outfolder = self.outfolder / self.trainer.loss.name
+        self.outfolder = Path(path) / 'metrics' / self.trainer.model.name
+        self.outfolder = self.outfolder / self.trainer.loss_object.name
         self.outfolder.mkdir(exist_ok=True, parents=True)
         self._reset()
 
@@ -40,12 +40,12 @@ class Logger:
                 specified intervals
          '''
         for idx, d in enumerate(vars):
-            fv = [v.numpy() for v in d]
+            fv = [float(v.numpy()) for v in d]
             if train:
                 self.logdict[self.trainer.train_vars[idx]] += fv
             else:
                 self.logdict[self.trainer.test_vars[idx]] += fv
-        ids = [i.numpy() for i in example_ids]
+        ids = [int(i.numpy()) for i in example_ids]
         if train:
             self.logdict['example_ids'] += ids
             if (batch == self.trainer.steps_per_epoch) or \
@@ -59,11 +59,11 @@ class Logger:
         Args:
             epoch (int): epoch number 
         '''
-        outfile = Path(f'epoch-{str(epoch)}') / 'log.json'
-        outpath = str(self.outfolder / outfile)
-        with open(outpath, 'w') as fh:
+        epoch_dir = self.outfolder / f'epoch-{epoch}'
+        epoch_dir.mkdir(exist_ok=True, parents=True)
+        outfile = epoch_dir / 'log.json'
+        with open(outfile, 'w') as fh:
             fh.write(json.dumps(self.logdict))
-
 
 
 class Checkpoint(ABC):
@@ -72,10 +72,10 @@ class Checkpoint(ABC):
         trainer (Trainer): trainer object 
         type (str): 'checkpoint' or 'optimizer' 
     '''
-    def __init__(self, trainer, type):
+    def __init__(self, trainer, type, path='..'):
         self.trainer = trainer
-        self.model_path = Path(self.trainer.model.name) / self.trainer.loss.name
-        self.model_path = Path(type) / self.model_path
+        self.model_path = Path(self.trainer.model.name) / self.trainer.loss_object.name
+        self.model_path = Path(path) / type / self.model_path
         self.model_path.mkdir(exist_ok=True, parents=True)
         super().__init__()
 
@@ -97,8 +97,8 @@ class ModelCheckpoint(Checkpoint):
         device (str): argument for experimental_io_device 
             in tf.train.CheckpointOptions call
     '''
-    def __init__(self, trainer, device):
-        super().__init__(trainer, 'checkpoint')
+    def __init__(self, trainer, device, path='..'):
+        super().__init__(trainer, 'checkpoint', path)
         self.options = tf.train.CheckpointOptions(device)
         if self.trainer.load_epoch:
             self._load()
@@ -127,8 +127,8 @@ class OptimizerCheckpoint(Checkpoint):
     Args:
         trainer (Trainer): trainer object
     '''
-    def __init__(self, trainer):
-        super().__init__(trainer, 'optimizer')
+    def __init__(self, trainer, path='..'):
+        super().__init__(trainer, 'optimizer', path)
         if self.trainer.load_epoch:
             self._load()
 

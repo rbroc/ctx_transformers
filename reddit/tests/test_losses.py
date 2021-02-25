@@ -2,6 +2,7 @@ import tensorflow as tf
 from reddit.losses import TripletLossBase, TripletLossFFN
 from reddit.models import BatchTransformer, BatchTransformerFFN
 from utils import build_distilbert_input
+import pytest
 from transformers import TFDistilBertModel
 
 WEIGHTS = 'distilbert-base-uncased'

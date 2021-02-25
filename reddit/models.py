@@ -19,7 +19,7 @@ class BatchTransformer(keras.Model):
     def __init__(self, transformer, path_to_weights,
                  name=None, trainable=True):
         if name is None:
-            name = path_to_weights
+            name = f'BatchTransformer-{path_to_weights}'
         super(BatchTransformer, self).__init__(name=name)
         self.path_to_weights = path_to_weights
         self.encoder = transformer.from_pretrained(path_to_weights)
@@ -82,7 +82,8 @@ class BatchTransformerFFN(BatchTransformer):
             activations = [activations] * n_dense
         self.activations = activations
         if name is None:
-            name = f'''{path_to_weights}_layers-{n_dense}_'
+            name = f'''BatchTransformerFFN-{path_to_weights}_
+                       layers-{n_dense}_'
                        dim-{'_'.join([str(d) for d in dims])}_
                        {'_'.join(activations)}'''
         super().__init__(transformer, path_to_weights, name, 

@@ -13,7 +13,7 @@ if __name__ == '__main__':
         maintainer='Roberta Rocca',
         maintainer_email='rbrrcc@gmail.com',
         url='http://github.com/rbroc/personality_reddit',
-        install_requires=['numpy', 'pandas', 'tensorflow', 'keras', 'seaborn'],
+        install_requires=['numpy', 'pandas', 'tensorflow', 'keras', 'seaborn', 'official', 'transformers'],
         packages=find_packages(exclude=['tests']),
         license='MIT',
         #package_data={'raw': ['datasets/*']

@@ -33,6 +33,10 @@ class Trainer:
             outputs and contain at least 'test_losses' and 
             'test_metrics'. If None, set to ['test_losses', 
             'test_metrics'].
+        checkpoint_device (str): argument to CheckpointOptions
+        log_path (str): argument to Path, defines path where 
+            metrics and checkpoints folder for logging are 
+            located (created if not existing)
     '''
     def __init__(self, model, 
                  loss_object, optimizer, strategy, 
@@ -40,14 +44,9 @@ class Trainer:
                  checkpoint_every=None, log_every=100,
                  start_epoch=0, no_load=False,
                  train_vars=None, test_vars=None,
-                 checkpoint_device='/job:localhost'):
-        self.model = model
-        self.loss_object = loss_object
-        self.optimizer = optimizer
-        self.strategy = strategy
-        self.n_epochs = n_epochs
-        self.steps_per_epoch = steps_per_epoch
-        self.checkpoint_every = checkpoint_every or steps_per_epoch
+                 checkpoint_device='/job:localhost',
+                 log_path='..'):
+        
         if train_vars:
             if (not isinstance(train_vars, list)) or (len(train_vars) < 2):
                 raise ValueError('train_vars should have at least two '
@@ -58,14 +57,22 @@ class Trainer:
                                   'elements (test loss, test metric)')
         self.train_vars = train_vars or ['losses', 'metrics']
         self.test_vars = test_vars or ['test_losses', 'test_metrics']
-        self.logger = Logger(self)
+        self.model = model
+        self.loss_object = loss_object
+        self.optimizer = optimizer
+        self.strategy = strategy
+        self.n_epochs = n_epochs
+        self.steps_per_epoch = steps_per_epoch
+        self.checkpoint_every = checkpoint_every or steps_per_epoch
+        self.log_every = log_every
         self.start_epoch = start_epoch
         if (start_epoch > 0) and (no_load is False):
             self.load_epoch = start_epoch - 1
         else:
             self.load_epoch = None
-        self.model_ckpt = ModelCheckpoint(self, checkpoint_device)
-        self.opt_ckpt = OptimizerCheckpoint(self)
+        self.logger = Logger(self, log_path)
+        self.model_ckpt = ModelCheckpoint(self, checkpoint_device, log_path)
+        self.opt_ckpt = OptimizerCheckpoint(self, log_path)
 
 
     def _train_step(self, batch_in_replica):

@@ -1,33 +1,27 @@
 # Up next 
-# Remove n_posts from output and take from example id
-# Write tests for loggers, trainer
-# Replace with make tensorflow dataset example!
-# Change example as batch
+# Finish up trainer tests (checkpoints, test_step, train_step)
+# Remove n_posts from output and take from example (add map fn)
 # Add flexible loss function specification
+# Make mock tensorflow dataset or not?
 
-# Refactor preprocessing
+# Refactor dataset/preprocessing
     - Add id to each example
+    - Add nr posts?
     - Expand nr users
     - Reverse dataset at save
     - More years/data
-
-# ENH
-# Edit data distribution/splitting function to take dictionary as input
-# Add function to check input
-# Clean up import
+# NOTE - some refactoring had previously been done
 
 Long-term
+- Add util function to check input
 - Develop viz module
-- Change package name !!!
+- Change package name
 - Rerun baseline model with new scripts
 - Make dockerfile
-
-Other:
-- Add option to compute average of all token encodings
 - Add gradient accumulation
 
-Notes:
-Key info: 
-- Margin, grad accumulation, model type
+Notes: 
+- Margin, grad accumulation, model type as manipulations
 - Tolerance for difference in tests set to 5e-7
 - In FFN anchor is averaged
+- Average distance from all encodings removed
