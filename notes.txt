@@ -1,6 +1,9 @@
-# Next 
+# Up next 
 # Remove n_posts from output and take from example id
-# Write tests for loss, loggers, trainer
+# Write tests for loggers, trainer
+# Replace with make tensorflow dataset example!
+# Change example as batch
+# Add flexible loss function specification
 
 # Refactor preprocessing
     - Add id to each example
@@ -25,6 +28,6 @@ Other:
 
 Notes:
 Key info: 
-# Margin, grad accumulation, model type
+- Margin, grad accumulation, model type
 - Tolerance for difference in tests set to 5e-7
 - In FFN anchor is averaged

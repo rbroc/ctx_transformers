@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
-from reddit.utils import average_anchor
+from reddit.utils import (average_anchor, 
+                          compute_mean_pairwise_distance)
 from abc import ABC, abstractmethod
 
 
@@ -30,33 +31,11 @@ class TripletLossBase(TripletLoss):
     def __init__(self, margin, name=None):
         super().__init__(margin, name)
 
-    def _compute_anchor_mean_distance(self, a_encoding):   
-        ''' Computes mean distance between anchor embeddings '''     
-        sqr_enc = tf.reduce_sum(a_encoding*a_encoding, axis=1)
-        mask = tf.equal(sqr_enc, 0)
-        mask = tf.abs(tf.cast(mask, tf.float32) - 1.0)
-        sqr_enc = tf.reshape(sqr_enc, [-1,1])
-        dists = sqr_enc - 2*tf.matmul(a_encoding, tf.transpose(a_encoding))
-        dists = dists + tf.transpose(sqr_enc)
-        dists = tf.transpose(dists * mask) * mask
-        dists = tf.linalg.band_part(dists,-1,0)
-        padded_size = a_encoding.shape[-2]
-        n_valid_dists = self._compute_n_distances(mask, padded_size)
-        mean_dist = tf.divide(tf.reduce_sum(dists), n_valid_dists)
-        return mean_dist
-
-    def _compute_n_distances(self, mask, padded_size):
-        ''' Compute number of valid pairwise encodings combinations '''
-        range_dists = tf.range(1, padded_size-1)
-        range_valid = tf.cast(range_dists, tf.float32) * mask
-        n_valid = tf.reduce_sum(range_valid)
-        return n_valid
-
-    def __call__(self, encodings, n_posts):
+    def __call__(self, encodings, posts):
         ''' Computes loss. Also returns distances between encodings '''
         n_enc, p_enc, a_enc = encodings[:,0,:], encodings[:,1,:], encodings[:,2:,:]
-        dist_anch = tf.vectorized_map(self._compute_anchor_mean_distance, elems=a_enc) # how does this work?
-        avg_a_enc = average_anchor(encodings, n_posts)
+        dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
+        avg_a_enc = tf.squeeze(average_anchor(a_enc, posts))
         dist_pos = tf.reduce_sum(tf.square(avg_a_enc - p_enc), axis=1)
         dist_neg = tf.reduce_sum(tf.square(avg_a_enc - n_enc), axis=1)
         metric = tf.cast(tf.greater(dist_neg, dist_pos), tf.float32)

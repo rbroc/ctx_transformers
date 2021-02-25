@@ -28,8 +28,8 @@ def test_batch_encoder():
 
     # Check differences
     diffs = tf.experimental.numpy.isclose(batch_encodings[0,:,:], 
-                                        encodings, 
-                                        atol=5e-7)
+                                          encodings, 
+                                          atol=5e-7)
     assert tf.reduce_all(diffs)
 
 
@@ -41,7 +41,6 @@ def test_batch_encoder_ffn():
         model = BatchTransformerFFN(TFDistilBertModel, weights,
                                     n_dense=2, dims=dims[i], activations=activations[i],
                                     name=f'test_model_{i}')
-        # Catch error
         batch_iids, n_posts_true = build_distilbert_input(weights, batched_only=True)
         encodings, n_posts = model(batch_iids)
         assert len(model.dense_layers.layers) == 2

@@ -83,7 +83,8 @@ class BatchTransformerFFN(BatchTransformer):
         self.activations = activations
         if name is None:
             name = f'''{path_to_weights}_layers-{n_dense}_'
-                       dim-{'_'.join(dims)}_{'_'.join(activations)}'''
+                       dim-{'_'.join([str(d) for d in dims])}_
+                       {'_'.join(activations)}'''
         super().__init__(transformer, path_to_weights, name, 
                          trainable)
         self.dense_layers = keras.Sequential([Dense(dims[i], activations[i], **kwargs)

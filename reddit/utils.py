@@ -31,8 +31,23 @@ def split_dataset(dataset, size=None,
         return d_tuning, d_train, d_val, d_test
 
 def average_anchor(encodings, n_posts):
-    out = tf.reduce_sum(encodings[:,2:,:], axis=1, keepdims=True)
+    out = tf.reduce_sum(encodings, axis=1, keepdims=1)
     n_posts = tf.expand_dims(n_posts-2, -1)
     n_posts = tf.expand_dims(n_posts, -1)
     out = tf.divide(out, n_posts)
     return out
+
+def compute_mean_pairwise_distance(encodings):   
+    ''' Computes mean distance between anchor embeddings '''     
+    sqr_enc = tf.reduce_sum(encodings*encodings, axis=1)
+    mask = tf.cast(tf.not_equal(sqr_enc, 0), tf.float32)
+    sqr_enc = tf.reshape(sqr_enc, [-1,1])
+    dists = sqr_enc - 2*tf.matmul(*[encodings]*2, transpose_b=True)
+    dists = dists + tf.transpose(sqr_enc)
+    dists = tf.transpose(dists * mask) * mask
+    dists = tf.linalg.band_part(dists,-1,0)
+    dists = dists - tf.linalg.band_part(dists,0,0)
+    range_valid = tf.range(mask.shape[-1], dtype=tf.float32) * mask
+    n_valid_dists = tf.reduce_sum(range_valid)
+    mean_dist = tf.divide(tf.reduce_sum(dists), n_valid_dists)
+    return mean_dist
