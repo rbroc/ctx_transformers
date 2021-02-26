@@ -1,8 +1,6 @@
 # Up next 
-# Finish up trainer tests (checkpoints, test_step, train_step)
 # Remove n_posts from output and take from example (add map fn)
 # Add flexible loss function specification
-# Make mock tensorflow dataset or not?
 
 # Refactor dataset/preprocessing
     - Add id to each example
@@ -22,6 +20,7 @@ Long-term
 
 Notes: 
 - Margin, grad accumulation, model type as manipulations
+- No room for optimizer in file naming protocol!
 - Tolerance for difference in tests set to 5e-7
 - In FFN anchor is averaged
 - Average distance from all encodings removed

@@ -106,8 +106,9 @@ class ModelCheckpoint(Checkpoint):
     def _load(self):
         ''' Loads model checkpoint '''
         epoch_pattern = f'epoch-{self.trainer.load_epoch}'
-        file = tf.train.latest_checkpoint(str(self.model_path/epoch_pattern))
-        self.trainer.model.load_weights(file, options=self.options)
+        ckpt_file = tf.train.latest_checkpoint(str(self.model_path/epoch_pattern))
+        print(f'Loading {ckpt_file}')
+        self.trainer.model.load_weights(ckpt_file, options=self.options)
 
     def save(self, epoch, batch):
         ''' Saves model checkpoint 
@@ -135,9 +136,10 @@ class OptimizerCheckpoint(Checkpoint):
     def _load(self):
         ''' Loads optimizer checkpoint '''
         epoch_pattern = f'epoch-{self.trainer.load_epoch}'
-        opt_files = glob(str(self.model_path / epoch_pattern))
+        opt_files = glob(str(self.model_path / epoch_pattern / '*'))
         opt_idx = np.argmax([int(f.split('/')[-1].split('-')[1]) for f in opt_files])
         opt_file = opt_files[opt_idx]
+        print(f'Loading {opt_file}')
         opt_weights = pkl.load(file=open(opt_file, 'rb'))
         self.trainer.optimizer._create_all_weights(self.trainer.model.trainable_variables)
         self.trainer.optimizer.set_weights(opt_weights)
