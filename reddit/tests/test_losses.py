@@ -9,8 +9,7 @@ WEIGHTS = 'distilbert-base-uncased'
 
 
 def test_triplet_loss_base():
-    batch_iids, n_posts_true = build_distilbert_input(WEIGHTS,
-                                                      batched_only=True)
+    batch_iids, _ = build_distilbert_input(WEIGHTS, batched_only=True)
     model = BatchTransformer(TFDistilBertModel, WEIGHTS)
     encodings, n_posts = model(batch_iids)
     loss = TripletLossBase(1)
@@ -38,7 +37,7 @@ def test_triplet_loss_base():
 def test_triplet_loss_ffn():
     model = BatchTransformerFFN(TFDistilBertModel, WEIGHTS,
                                n_dense=2, dims=256, activations='relu')
-    batch_iids, n_posts_true = build_distilbert_input(WEIGHTS, batched_only=True)
+    batch_iids, _ = build_distilbert_input(WEIGHTS, batched_only=True)
     encodings, n_posts = model(batch_iids)
     loss = TripletLossFFN(1)
     loss_outs = loss(encodings, n_posts)

@@ -124,9 +124,9 @@ def test_trainer_train():
                       checkpoint_device=None,
                       distributed=False)
     model_path = Path(f'BatchTransformer-{WEIGHTS}') / 'triplet_loss_margin-1'
-    examples, n = build_distilbert_multiple_input(weights=WEIGHTS, 
+    examples, _ = build_distilbert_multiple_input(weights=WEIGHTS, 
                                                   n_examples=n_train_examples)
-    test_examples, n = build_distilbert_multiple_input(weights=WEIGHTS,
+    test_examples, _ = build_distilbert_multiple_input(weights=WEIGHTS,
                                                        type='test',
                                                        n_padded=0, 
                                                        n_examples=n_test_examples)

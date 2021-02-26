@@ -77,7 +77,7 @@ class TripletLossFFN(TripletLoss):
         dist_pos = tf.reduce_sum(tf.square(a_enc - p_enc), axis=1)
         dist_neg = tf.reduce_sum(tf.square(a_enc - n_enc), axis=1)
         metric = tf.cast(tf.greater(dist_neg, dist_pos), tf.float32)
-        loss = self._loss_function(dist_pos, dist_neg, dist_anch)
+        loss = self._loss_function(dist_pos, dist_neg)
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg]]
         return outs

@@ -25,7 +25,6 @@ def test_batch_encoder():
     assert tf.reduce_all(tf.equal(batch_encodings[0,-2,:], 0))
     assert tf.reduce_all(tf.equal(batch_encodings[0,-1,:], 0))
     assert tf.reduce_all(tf.equal(batch_encodings[0,3,:], 0)) == False
-
     # Check differences
     diffs = tf.experimental.numpy.isclose(batch_encodings[0,:,:], 
                                           encodings, 
@@ -41,8 +40,8 @@ def test_batch_encoder_ffn():
         model = BatchTransformerFFN(TFDistilBertModel, weights,
                                     n_dense=2, dims=dims[i], activations=activations[i],
                                     name=f'test_model_{i}')
-        batch_iids, n_posts_true = build_distilbert_input(weights, batched_only=True)
-        encodings, n_posts = model(batch_iids)
+        batch_iids, _ = build_distilbert_input(weights, batched_only=True)
+        encodings, _ = model(batch_iids)
         assert len(model.dense_layers.layers) == 2
         for idx, l in enumerate(model.dense_layers.layers):
             assert l.output_shape[1] == 3

@@ -10,6 +10,7 @@
 # Edit tfrecord for new data format
 
 LONGER TERM
+- Check dependencies
 - Develop viz module
 - Change package name
 - Make dockerfile
