@@ -1,22 +1,21 @@
-# Up next 
-# Remove n_posts from output and take from example (add map fn)
-# Add flexible loss function specification
-# Make sure strategy works
+# UP NEXT
+# Quick try on notebook to make sure strategy works
 
-# Refactor dataset/preprocessing
+# Refactor dataset/preprocessing (start from already refactored)
     - Add id to each example
-    - Add nr posts?
     - Expand nr users
     - Reverse dataset at save
     - More years/data
-# NOTE - some refactoring had previously been done
 
-Long-term
+# Edit tfrecord for new data format
+
+LONGER TERM
 - Develop viz module
 - Change package name
-- Rerun baseline model with new scripts
 - Make dockerfile
-- Add gradient accumulation
+- Add gradient accumulation?
+- Add to loss distance between n and anch
+- Rerun baseline model with new scripts
 
 Notes: 
 - Margin, grad accumulation, model type as manipulations
