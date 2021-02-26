@@ -1,6 +1,7 @@
 # Up next 
 # Remove n_posts from output and take from example (add map fn)
 # Add flexible loss function specification
+# Make sure strategy works
 
 # Refactor dataset/preprocessing
     - Add id to each example
@@ -11,7 +12,6 @@
 # NOTE - some refactoring had previously been done
 
 Long-term
-- Add util function to check input
 - Develop viz module
 - Change package name
 - Rerun baseline model with new scripts
