@@ -4,22 +4,25 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
-import os
+import glob
 import itertools
 import timeit
 
-
+# Loading functions
 def merge_csv(dir, sep='\t'):
-    ''' Read in a list of files and return merged dataframe '''
-    path = Path(dir)
-    flist = os.listdir(dir)
+    ''' Read in a list of files and return merged dataframe 
+    Args:
+        dir (str): folder to read files from
+        sep (str): separator
+    '''
+    flist = glob.glob(dir)
     for idx, f in enumerate(flist):
         print(f'Reading file {idx+1} out of {len(flist)}')
         try:
-            subdf = pd.read_csv(str(path/f), sep=sep)
+            subdf = pd.read_csv(f, sep=sep)
             subdf = subdf.drop_duplicates(subset='selftext')
             if idx == 0:
-                df = subdf.copy()
+                df = subdf
             else:
                 df = pd.concat([df, subdf], ignore_index=True)
         except:
@@ -27,113 +30,201 @@ def merge_csv(dir, sep='\t'):
     return df
 
 
-def add_aggregate_metrics(data, agg_by, agg_dict, colnames, agg_on='selftext', inplace=True):
-    ''' Adds to df columns with aggregate metrics (e.g. nr posts per subreddit) '''
-    aggdf = data[[agg_by, agg_on]].groupby(agg_by).aggregate(agg_dict).reset_index()
-    aggdf.columns = colnames
+# Computing aggregates by user
+def aggregate_metrics(df, group_by, agg_fn, 
+                      colnames, target='selftext', 
+                      inplace=True):
+    ''' Computes aggregates of a variable
+    Args:
+        df (pd.DataFrame): dataframe
+        group_by (str): column to group by
+        agg_fn (dict, str or function): dictionary, str or 
+            function specifying how to aggregate
+        colnames (list): column names for aggregate dataframe 
+            (grouping and target column)
+        target (str): variables to compute aggregates on
+        inplace (bool): if True, adds aggregates to dataframe, 
+            else returns aggregate dataframe only
+    '''
+    aggdf = df[[group_by, target]].groupby(group_by)
+    aggdf = aggdf.agg(agg_fn).reset_index()
+    if colnames:
+        aggdf.columns = colnames
     if inplace:
-        if colnames[1] in data.columns:
-            data = data.drop(colnames[1], axis=1)
-        return pd.merge(data, aggdf)
+        if colnames[1] in df.columns:
+            df = df.drop(colnames[1], axis=1)
+        return pd.merge(df, aggdf)
     else:
         return aggdf
 
 
-def update_aggregates(data, metrics='all'):
+def update_aggregates(df, metrics='all'):
+    '''  Update main aggregate metrics in dataframe
+    Args:
+        df (pd.DataFrame): dataframe
+        metrics (str): one of 'n_user_posts', 'n_subreddit_posts',
+            'n_user_subreddits','n_subreddit_users', or 'all'
+    '''
     if metrics == 'all':
-        metrics = ['user_posts_count', 'subreddit_posts_count',
-                   'subreddit_nr_unique_users', 'user_nr_unique_subreddits']
+        metrics = ['n_user_posts', 'n_subreddit_posts',
+                   'n_user_subreddits','n_subreddit_users']
     for m in metrics:
-        if m == 'user_posts_count':
-            data = add_aggregate_metrics(data, 'author', 'count', 
-                                         ['author', 'user_posts_count'])
-        elif m == 'subreddit_posts_count':
-            data = add_aggregate_metrics(data, 'subreddit', 'count',
-                                         ['subreddit', 'subreddit_posts_count'])
-        elif m == 'subreddit_nr_unique_users':
-            data = add_aggregate_metrics(data, 'subreddit', lambda x: x.nunique(), 
-                                         ['subreddit', 'subreddit_nr_unique_users'],
-                                         agg_on='author')      
-        elif m == 'user_nr_unique_subreddits':
-            data = add_aggregate_metrics(data, 'author', lambda x: x.nunique(), 
-                                         ['author', 'user_nr_unique_subreddits'],
-                                         agg_on='subreddit')
-            
+        if m == 'n_user_posts':
+            data = aggregate_metrics(df, 
+                                     group_by='author', 
+                                     agg_fn='count', 
+                                     colnames=['author', 'n_user_posts'])
+        elif m == 'n_subreddit_posts':
+            data = aggregate_metrics(df, 
+                                     group_by='subreddit', 
+                                     agg_fn='count',
+                                     colnames=['subreddit', 
+                                               'n_subreddit_posts'])
+        elif m == 'n_user_subreddits':
+            data = aggregate_metrics(df, 
+                                     group_by='author', 
+                                     agg_fn=lambda x: x.nunique(), 
+                                     colnames=['author', 'n_user_subreddits'],
+                                     target='subreddit')
+        elif m == 'n_subreddit_users':
+            data = aggregate_metrics(df, 
+                                     group_by='subreddit', 
+                                     agg_fn=lambda x: x.nunique(), 
+                                     colnames=['subreddit', 
+                                               'n_subreddit_users'],
+                                     target='author')
     return data
 
 
-def plot_aggregates(data, figsize=(12,15), vlines=None, 
-                    colors=None, bins=None, log=None, nrows=4, 
-                    ncols=1, save=False, fname=None, **kwargs):
-    ''' Plot all aggregate metrics '''
-    mdict = {'user_posts_count': ['author', '# posts', '# users'], 
-             'user_nr_unique_subreddits':['author', '# subreddits', '# users'],
-             'subreddit_posts_count': ['subreddit', '# post', '# subreddits'], 
-             'subreddit_nr_unique_users': ['subreddit', '# users', '# subreddits']}
+def plot_aggregates(df, figsize=(12,15),
+                    bins=None, log=None, nrows=4, 
+                    ncols=1, save_file=None, **kwargs):
+    ''' Plot histograms of all aggregate metrics (n_user_posts,
+        n_user_subreddits, n_subreddit_posts, n_subreddit_users)
+    Args:
+        df (pd.DataFrame): dataframe
+        figsize (tuple): figure size
+        bins (list): list of number of bins per plot
+        log (bool): if x axis should be plotted in log scale
+        nrows (int): number of rows in subplot
+        ncols (int): number of cols in subplot
+        save_file (str): if provided, saves the plot at specified
+            file path
+        kwargs: keyword arguments for plt.subplots
+    '''
+    mdict = {'n_user_posts': ['author', '# posts', '# users'], 
+             'n_user_subreddits': ['author', '# subreddits', '# users'],
+             'n_subreddit_posts': ['subreddit', '# post', '# subreddits'], 
+             'n_subreddit_users': ['subreddit', '# users', '# subreddits']}
     bins = bins or [50] * 4
     log = log or [True] * 4
-    colors = colors or ['orange', 'darkorange', 'darkred', 'black']
-    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, **kwargs)
-    ax_idx = list(itertools.product(range(nrows), range(ncols)))
+    _, ax = plt.subplots(nrows=nrows, ncols=ncols, 
+                         figsize=figsize, **kwargs)
+    ax_idx = list(itertools.product(range(nrows), 
+                                    range(ncols)))
     for idx, m in enumerate(mdict.keys()):
         if log[idx] == True:
             ax[ax_idx[idx]].set_xscale('log')
-        if vlines:
-            for i, v in enumerate(vlines):
-                ax[ax_idx[idx]].axvline(v, linestyle='--', c=colors[i])
-        sns.histplot(data.groupby(mdict[m][0]).aggregate({m: 'first'}), 
+        sns.histplot(df.groupby(mdict[m][0]).agg({m: 'first'}), 
                      bins=bins[idx], ax=ax[ax_idx[idx]])
         ax[ax_idx[idx]].set_xlabel(mdict[m][1])
         ax[ax_idx[idx]].set_ylabel(mdict[m][2])
         ax[ax_idx[idx]].legend('')
     plt.tight_layout()
-    if save:
-        plt.savefig(fname)
+    if save_file:
+        plt.savefig(save_file)
     else:
         plt.show()
 
 
-def log_size(data, sdict, name, save_file=None):
-    ''' Track dataset size over preprocessing '''
+# Functions for logging of dataset metrics
+def log_size(df, name, sdict=None, save_file=None):
+    ''' Log (and save) dataset size at different stages
+    Args:
+        name (str): name of the preprocessing step
+            (key to dictionary)
+        sdict (dict): log dictionary (if None, creates
+            an empty dictionary)
+        save_file (str): if provided, saves the 
+            dictionary at specified path as json
+    '''
+    if sdict is None:
+        sdict = dict(zip(['names', 'users', 
+                          'posts','subreddits'],
+                          [[]]*4))
     sdict['names'].append(name)
-    sdict['users'].append(data.author.nunique())
-    sdict['posts'].append(data.shape[0])
-    sdict['subreddits'].append(data.subreddit.nunique())
+    sdict['users'].append(df.author.nunique())
+    sdict['posts'].append(df.shape[0])
+    sdict['subreddits'].append(df.subreddit.nunique())
     if save_file is not None:
         json.dump(sdict, open(save_file, 'w'))
     return sdict
 
 
-def encode_posts(d, tokenizer):
-    idxs = list(np.arange(0, d.shape[0], 100000)) + [d.shape[0]]
-    start = timeit.default_timer() 
-    timestamp = start
-    for i in range(len(idxs) - 1):
-        print(f'Timestamp previous step {timestamp - start}')
-        print(f'Encoding posts {idxs[i]} to {idxs[i+1]}  \
-                out of {d.shape[0]}')
-        tokenized = d['selftext'][idxs[i]:idxs[i+1]].apply(lambda x: tokenizer.encode_plus(' '.join(x.split()[:400]), 
-                                                                                            truncation=True, 
-                                                                                            padding='max_length'))
-        if i == 0:
-            tokdf = pd.DataFrame(tokenized)
-        else:
-            tokdf = pd.concat([tokdf, pd.DataFrame(tokenized)], 
-                               ignore_index=True)
-        timestamp = timeit.default_timer()
-    d['input_ids'] = tokdf['selftext'].apply(lambda x: x['input_ids'])
-    d['attention_mask'] = tokdf['selftext'].apply(lambda x: x['attention_mask'])
-    return d
-
-def plot_size_curve(sdict, save=False, fname=None):
-    fig, ax = plt.subplots(ncols=3, figsize=(10,4), sharex=True)
-    for idx, metric in enumerate(['users', 'posts', 'subreddits']):
-        sns.lineplot(x=sdict['names'], y=sdict[metric], ax=ax[idx])
-        ax[idx].set_ylabel(metric)
+def plot_size_curve(sdict, save_file=None):
+    ''' Plots change in dataset metrics (size, n_posts, etc)
+        over preprocessing steps
+    Args:
+        sdict (dict): log dictionary
+        save_file (str): if specified, saves figure to path
+    '''
+    _, ax = plt.subplots(ncols=3, figsize=(10,4), sharex=True)
+    for idx, m in enumerate(['users', 'posts', 'subreddits']):
+        sns.lineplot(x=sdict['names'], 
+                     y=sdict[m], 
+                     ax=ax[idx])
+        ax[idx].set_ylabel(m)
         ax[idx].set_yscale('log')
-        ax[idx].set_xticklabels(sdict['names'], rotation=90)
+        ax[idx].set_xticklabels(sdict['names'], 
+                                rotation=90)
     plt.tight_layout()
-    if save:
-        plt.savefig(fname)
+    if save_file:
+        plt.savefig(save_file)
     else:
         plt.show()
+
+
+# Functions for tokenization
+def _tknz(x, tokenizer, n_wds):
+    ''' Util function to tokenize text '''
+    out = tokenizer.encode_plus(' '.join(x.split()[:n_wds]),
+                                truncation=True, 
+                                padding='max_length')
+    return out
+
+def tokenize(df, tknzr, n_wds=400, batch_size=100000):
+    ''' Encodes all posts in the dataset using a given 
+        huggingface tokenizer
+    Args:
+        df (pd.DataFrame): dataframe
+        tokenizer (Tokenizer): huggingface tokenizer object
+        n_wds (int): number of words to truncate input at 
+            (for efficiency,truncation would happen anyway
+            at token level)
+        batch_size (int): how many posts to encode at a 
+            time
+    '''
+    pid = list(np.arange(0, df.shape[0], batch_size)) 
+    pid = pid.append(df.shape[0])
+    start_t = timeit.default_timer() 
+    current_t = start_t
+    for i in range(len(pid) - 1):
+        print(f'Timestamp previous step {current_t - start_t}')
+        print(f'Encoding {pid[i]} to {pid[i+1]} of {df.shape[0]}')
+        tknzd = df['selftext'][pid[i]:
+                               pid[i+1]].apply(lambda x: _tknz(x, 
+                                                               tknzr, 
+                                                               n_wds))
+        tknzd = pd.DataFrame(tknzd)
+        if i == 0:
+            alltkn = tknzd
+        else:
+            alltkn = pd.concat([alltkn, 
+                                tknzd], 
+                                ignore_index=True)
+        current_t = timeit.default_timer()
+    for c in ['input_ids', 'attention_mask']:
+        df[c] = alltkn['selftext'].apply(lambda x: x[c])
+    return df
+
+

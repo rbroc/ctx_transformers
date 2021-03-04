@@ -4,9 +4,9 @@ import numpy as np
 import itertools
 from sklearn.model_selection import GroupShuffleSplit
 from pathlib import Path
-from tools.datasets import (split_dataset, stack_examples, 
-                            plot_split_stat, save_dataset, 
-                            plot_subreddit_distribution)
+from .datasets import (split_dataset, stack_examples, 
+                       plot_split_stat, save_dataset, 
+                       plot_subreddit_distribution)
 
 # Define useful variables
 PROCESSED_PATH = Path('processed') / 'pushshift'
