@@ -61,7 +61,7 @@ def make_datasets():
     print('Saving subreddit distribution...')
     plot_subreddit_distribution(d=df, 
                                 save=True, 
-                                fname=str(FIG_PATH/'subreddit_distribution_nn1.png'))
+                                fname=str(FIG_PATH/'subreddit_distribution.png'))
 
     # Create and save toy and full datasets
     print('Creating and saving toy dataset...')

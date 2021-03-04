@@ -49,6 +49,7 @@ def preprocess():
     ''' Runs preprocessing on the dataset (filtering by number of users,
         subreddits, language, duplicates, etc...)'''
     print('Reading files...')
+    
     # Load and merge
     df = merge_csv(PROCESSED_PATH)
     df = df[~df['subreddit'].isnull()]

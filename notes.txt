@@ -1,5 +1,16 @@
 # UP NEXT
-# Quick try on notebook to make sure strategy works
+
+Split utils for:
+- Dataset building
+- TFRecord?
+- Computations of sort?
+- Preprocessing
+
+Open
+Preprocess (tmp)
+Make_dataset (tmp)
+__init__ utils
+Utils file
 
 # Refactor dataset/preprocessing (start from already refactored)
     - Add id to each example
@@ -8,6 +19,8 @@
     - More years/data
 
 # Edit tfrecord for new data format
+
+# Quick try on notebook to make sure strategy works
 
 LONGER TERM
 - Check dependencies

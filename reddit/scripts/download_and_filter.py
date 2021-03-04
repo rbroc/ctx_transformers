@@ -7,16 +7,32 @@ import json
 import itertools
 import pandas as pd
 
+
 # Directory params for download
-SAVE_DIR = Path('tmp')
+DOWNLOAD_DIR = Path('..') / 'data' / 'tmp'
+DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+SAVE_DIR = Path('..') / 'data' / 'raw'
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Requests url
+
+# Url for requests
 URL = 'https://files.pushshift.io/reddit/submissions/'
 
-# Define useful functions
+
+# Pushshift files params
+years = [str(i) for i in [2018, 2019]]
+months = ['0' + str(i) for i in range(1, 10)] + [str(i) for i in [10, 11, 12]]
+ym_comb = itertools.product(years, months)
+
+# Filtering params
+target_fields = ['author', 'created_utc', 'domain', 'id', 
+                'num_comments', 'num_crossposts', 'score', 
+                'selftext', 'subreddit', 'subreddit_id',
+                'title']
+
+# Define submission filtering function
 def filter_line(ldict, posts, target_fields):
-    if (ldict['subreddit'] in srlist) and \
+    if (ldict['over_18'] is False) and \
         (ldict['selftext'] not in ['', '[deleted]', '[removed]']) and \
         (ldict['author'] != '[deleted]') and \
         (ldict['is_self'] == True):
@@ -24,31 +40,20 @@ def filter_line(ldict, posts, target_fields):
         posts.append(ldict)
         return ldict, posts
 
+# Define logging function
 def save_file(posts, year, month, idx, fprefix):
     idx += 1
     df = pd.DataFrame(posts)
-    df.to_csv(f'../raw/pushshift/{year}_{month}_{idx*100000}.txt', 
-            sep='\t', index=False)
+    outfile = SAVE_DIR / f'{year}_{month}_{idx*100000}.txt'
+    df.to_csv(outfile, sep='\t', index=False, compression='gzip')
     print(f'Saving {fprefix} {idx*100000}...')
     posts = []
     return posts, idx
 
-
-# Pushshift dump filename params
-years = [str(i) for i in [2018, 2019]]
-months = ['0' + str(i) for i in range(1, 10)] + [str(i) for i in [10, 11, 12]]
-ym_comb = itertools.product(years, months)
-
-
-# Filtering params
-srlist = list(pd.read_csv('../utils/top_1000_subreddits.txt', sep='\t').real_name)
-target_fields = ['author', 'created_utc', 'domain', 'id', 
-                'num_comments', 'num_crossposts', 'score', 
-                'selftext', 'subreddit', 'subreddit_id',
-                'title']
-
+# Main function
 def download_and_extract():
-    ''' Downloads Reddit dump by month, then extracts, filters and saves posts as tsv '''
+    ''' Downloads Reddit dump, filters posts and saves as tsv '''
+
     for year, month in ym_comb:
         # Request
         fprefix = ''.join(['RS', '_', year, '-', month])
@@ -59,9 +64,9 @@ def download_and_extract():
             cformat = '.xz'
             r = requests.get(furl + '.xz', stream=True)
 
-        # Download and save the file
-        if not os.path.exists(SAVE_DIR / (fprefix + cformat)):
-            with open(SAVE_DIR / (fprefix + cformat), 'wb') as f:
+        # Download and save
+        if not os.path.exists(DOWNLOAD_DIR / (fprefix + cformat)):
+            with open(DOWNLOAD_DIR / (fprefix + cformat), 'wb') as f:
                 for idx, chunk in enumerate(r.iter_content(chunk_size=16384)):
                     if (idx != 0) and (idx % 1000 == 0):
                         print(f'Writing file {(fprefix + cformat)}: chunk {idx}')
@@ -70,13 +75,13 @@ def download_and_extract():
         else:
             print(f'{fprefix} already downloaded!')
 
-        # Extract, filter, and save filtered version
+        # Decompress filter and save file
         posts = []
         idx = 0
 
-        # routine for xz format 
+        # xz format 
         if cformat == '.xz':
-            with lzma.open(SAVE_DIR / (fprefix + cformat), mode='rt') as fh:
+            with lzma.open(DOWNLOAD_DIR / (fprefix + cformat), mode='rt') as fh:
                 for line in fh:
                     ldict = json.loads(line)
                     posts = filter_line(ldict, posts, target_fields)
@@ -84,12 +89,13 @@ def download_and_extract():
                         posts, idx = save_file(posts, year, month, idx, fprefix)
                 if posts != []:
                     save_idx = idx * 100000 + len(posts)
-                    pd.DataFrame(posts).to_csv(f'../raw/pushshift/{year}_{month}_{save_idx}.txt', 
-                                sep='\t', index=False)
+                    outfile = SAVE_DIR / f'{year}_{month}_{save_idx}.txt'
+                    pd.DataFrame(posts).to_csv(outfile, sep='\t', index=False, 
+                                               compression='gzip')
 
-        # routine for zst format
+        # zst format
         elif cformat == '.zst':
-            with open(SAVE_DIR / (fprefix + cformat), 'rb') as fh:
+            with open(DOWNLOAD_DIR / (fprefix + cformat), 'rb') as fh:
                 dcmp = zstd.ZstdDecompressor()
                 buffer = ''
                 with dcmp.stream_reader(fh) as reader:
@@ -98,8 +104,10 @@ def download_and_extract():
                         if not chunk:
                             if posts != []:
                                 save_idx = idx * 100000 + len(posts)
-                                pd.DataFrame(posts).to_csv(f'../raw/pushshift/{year}_{month}_{save_idx}.txt', 
-                                        sep='\t', index=False)
+                                outfile = SAVE_DIR / f'{year}_{month}_{save_idx}.txt'
+                                pd.DataFrame(posts).to_csv(outfile, sep='\t', 
+                                                           index=False, 
+                                                           compression='gzip')
                             break
                         lines = (buffer + chunk).split('\n')
                         for line in lines[:-1]:
@@ -109,10 +117,12 @@ def download_and_extract():
                                 posts, idx = save_file(posts, year, month, idx, fprefix)
                         buffer = lines[-1]          
     
-        # Remove raw file from directory
-        os.remove(SAVE_DIR / (fprefix + cformat))
-    # Remove tmp directory
+        # remove file
+        os.remove(DOWNLOAD_DIR / (fprefix + cformat))
+
+    # remove temp directory
     os.remove('tmp')
+
 
 if __name__ == '__main__':
     download_and_extract()

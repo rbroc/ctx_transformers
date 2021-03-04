@@ -1,19 +1,20 @@
 import tensorflow as tf
 
+
 def split_dataset(dataset, size=None,
                   perc_train=.7, perc_val=.1, 
                   tuning=None):
     ''' Split dataset into training, validation and test set 
-        Args:
-            dataset (TFDataset): dataset to split (preprocessed and batched)
-            size (int): number of examples. If not provided, 
-                it is computed on the fly.
-            perc_train (float): percentage of examples in training set
-            perc_val (float): percentage of examples in training set
-            tuning (optional): if provided, defines number of example for 
-                additional tuning dataset.
-        Returns:
-            tuning, training, valdiation and test set (not distributed yet)
+    Args:
+        dataset (TFDataset): dataset to split (preprocessed and batched)
+        size (int): number of examples. If not provided, 
+            it is computed on the fly.
+        perc_train (float): percentage of examples in training set
+        perc_val (float): percentage of examples in training set
+        tuning (optional): if provided, defines number of example for 
+            additional tuning dataset.
+    Returns:
+        tuning, training, valdiation and test set (not distributed yet)
     ''' 
     if size is None:
         size = 0
@@ -30,15 +31,29 @@ def split_dataset(dataset, size=None,
         d_tuning = dataset.take(tuning)
         return d_tuning, d_train, d_val, d_test
 
+
 def average_anchor(encodings, n_posts):
+    ''' Averages encodings along feature dimension
+    Args:
+        encodings (tf.Tensor): tensor of anchor encodings
+            (shape n_dims x n_posts)
+        n_posts (int): dimensionality of input (anchor + 
+            negative example + positive example) before 
+            padding
+    '''
     out = tf.reduce_sum(encodings, axis=1, keepdims=1)
     n_posts = tf.expand_dims(n_posts-2, -1)
     n_posts = tf.expand_dims(n_posts, -1)
     out = tf.divide(out, n_posts)
     return out
 
+
 def compute_mean_pairwise_distance(encodings):   
-    ''' Computes mean distance between anchor embeddings '''     
+    ''' Computes mean distance between embeddings 
+    Args:
+        encodings (tf.Tensor): n_dims x n_posts tensor
+            of encodings
+    '''     
     sqr_enc = tf.reduce_sum(encodings*encodings, axis=1)
     mask = tf.cast(tf.not_equal(sqr_enc, 0), tf.float32)
     sqr_enc = tf.reshape(sqr_enc, [-1,1])
