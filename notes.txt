@@ -1,12 +1,12 @@
 # UP NEXT
+- Names for various prep steps (and scripts?)
 
-# To dos:
-###### RERUN PREPROCESSING
-# Add download fasttext
-# Remove aggregation from utils
-# Remove tokenization
-# Make number of posts subreddits specifiable on command line
-# Define meaningful paths
+SET UP TOKENIZATION
+- separate file
+- separate folder for out
+
+SET UP MAKE DATASET
+- Need new utils!
 
 ##### SPLIT UTILS
 Split utils for:
@@ -15,12 +15,9 @@ Split utils for:
 - Computations of sort?
 - Preprocessing
 
-#### RERUN TOKENIZATION
-- seprate file
-- separate folder
 
 #### RERUN MAKE_DATASET
-    - Need new utils for triplet loss dataset 
+    - Need new utils for make triplet loss dataset 
     - Add ID to example
     - Store mapping of ids somewhere
     - Reverse dataset at save
@@ -31,7 +28,7 @@ Split utils for:
 # Quick try on notebook to make sure strategy works
 
 LONGER TERM
-- Check dependencies
+- Check dependencies / setup.py
 - Develop viz module
 - Change package name
 - Edit dockerfile

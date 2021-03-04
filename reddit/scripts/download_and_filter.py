@@ -117,11 +117,9 @@ def download_and_extract():
                                 posts, idx = save_file(posts, year, month, idx, fprefix)
                         buffer = lines[-1]          
     
-        # remove file
         os.remove(DOWNLOAD_DIR / (fprefix + cformat))
 
-    # remove temp directory
-    os.remove('tmp')
+    os.rmdir(DOWNLOAD_DIR)
 
 
 if __name__ == '__main__':

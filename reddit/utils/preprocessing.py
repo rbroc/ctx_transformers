@@ -63,37 +63,25 @@ def update_aggregates(df, metrics='all'):
     '''  Update main aggregate metrics in dataframe
     Args:
         df (pd.DataFrame): dataframe
-        metrics (str): one of 'n_user_posts', 'n_subreddit_posts',
-            'n_user_subreddits','n_subreddit_users', or 'all'
+        metrics (str): one of 'n_user_posts',
+            'n_user_subreddits', or 'all'
     '''
     if metrics == 'all':
-        metrics = ['n_user_posts', 'n_subreddit_posts',
-                   'n_user_subreddits','n_subreddit_users']
+        metrics = ['n_user_posts', 'n_user_subreddits']
     for m in metrics:
         if m == 'n_user_posts':
             data = compute_aggregates(df, 
                                       group_by='author', 
                                       agg_fn='count', 
-                                      colnames=['author', 'n_user_posts'])
+                                      colnames=['author', 
+                                                'n_user_posts'])
         elif m == 'n_user_subreddits':
             data = compute_aggregates(df, 
                                       group_by='author', 
                                       agg_fn=lambda x: x.nunique(), 
-                                      colnames=['author', 'n_user_subreddits'],
+                                      colnames=['author', 
+                                                'n_user_subreddits'],
                                       target='subreddit')
-        elif m == 'n_subreddit_posts':
-            data = compute_aggregates(df, 
-                                      group_by='subreddit', 
-                                      agg_fn='count',
-                                      colnames=['subreddit', 
-                                                'n_subreddit_posts'])
-        elif m == 'n_subreddit_users':
-            data = compute_aggregates(df, 
-                                      group_by='subreddit', 
-                                      agg_fn=lambda x: x.nunique(), 
-                                      colnames=['subreddit', 
-                                                'n_subreddit_users'],
-                                     target='author')
     return data
 
 
