@@ -2,9 +2,9 @@
 
 # To dos:
 ###### RERUN PREPROCESSING
-# Drop duplicates early on
-# Subset string?
-# What to do with aggregation by subreddit? Remove?
+# Add download fasttext
+# Remove aggregation from utils
+# Remove tokenization
 # Make number of posts subreddits specifiable on command line
 # Define meaningful paths
 

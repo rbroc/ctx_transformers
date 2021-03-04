@@ -6,32 +6,35 @@ import glob
 import itertools
 
 
-# Loading functions
-def merge_csv(dir, sep='\t'):
+def read_files(dir, sep='\t', drop_duplicates=True):
     ''' Read in a list of files and return merged dataframe 
     Args:
         dir (str): folder to read files from
         sep (str): separator
+        drop_duplicates (bool): whether duplicates should
+            be removed (if so, drops duplicates every 5
+            files)
     '''
     flist = glob.glob(dir)
     for idx, f in enumerate(flist):
         print(f'Reading file {idx+1} out of {len(flist)}')
         try:
             subdf = pd.read_csv(f, sep=sep)
-            subdf = subdf.drop_duplicates(subset='selftext')
             if idx == 0:
                 df = subdf
             else:
                 df = pd.concat([df, subdf], ignore_index=True)
         except:
             print(f'Skipping {f} - error')
+        if (idx % 5 == 0) and (drop_duplicates):
+            df = df.drop_duplicates(subset=['author',
+                                            'selftext'])
     return df
 
 
-# Computing aggregates by user
-def aggregate_metrics(df, group_by, agg_fn, 
-                      colnames, target='selftext', 
-                      inplace=True):
+def compute_aggregates(df, group_by, agg_fn, 
+                       colnames, target='selftext', 
+                       inplace=True):
     ''' Computes aggregates of a variable
     Args:
         df (pd.DataFrame): dataframe
@@ -68,28 +71,28 @@ def update_aggregates(df, metrics='all'):
                    'n_user_subreddits','n_subreddit_users']
     for m in metrics:
         if m == 'n_user_posts':
-            data = aggregate_metrics(df, 
-                                     group_by='author', 
-                                     agg_fn='count', 
-                                     colnames=['author', 'n_user_posts'])
+            data = compute_aggregates(df, 
+                                      group_by='author', 
+                                      agg_fn='count', 
+                                      colnames=['author', 'n_user_posts'])
         elif m == 'n_user_subreddits':
-            data = aggregate_metrics(df, 
-                                     group_by='author', 
-                                     agg_fn=lambda x: x.nunique(), 
-                                     colnames=['author', 'n_user_subreddits'],
-                                     target='subreddit')
+            data = compute_aggregates(df, 
+                                      group_by='author', 
+                                      agg_fn=lambda x: x.nunique(), 
+                                      colnames=['author', 'n_user_subreddits'],
+                                      target='subreddit')
         elif m == 'n_subreddit_posts':
-            data = aggregate_metrics(df, 
-                                     group_by='subreddit', 
-                                     agg_fn='count',
-                                     colnames=['subreddit', 
-                                               'n_subreddit_posts'])
+            data = compute_aggregates(df, 
+                                      group_by='subreddit', 
+                                      agg_fn='count',
+                                      colnames=['subreddit', 
+                                                'n_subreddit_posts'])
         elif m == 'n_subreddit_users':
-            data = aggregate_metrics(df, 
-                                     group_by='subreddit', 
-                                     agg_fn=lambda x: x.nunique(), 
-                                     colnames=['subreddit', 
-                                               'n_subreddit_users'],
+            data = compute_aggregates(df, 
+                                      group_by='subreddit', 
+                                      agg_fn=lambda x: x.nunique(), 
+                                      colnames=['subreddit', 
+                                                'n_subreddit_users'],
                                      target='author')
     return data
 
@@ -97,7 +100,7 @@ def update_aggregates(df, metrics='all'):
 def plot_aggregates(df, figsize=(8,6),
                     bins=[50, 20, 50, 50], 
                     log=None, 
-                    nrows=2, ncols=2, save_file=None, 
+                    nrows=1, ncols=2, save_file=None, 
                     **kwargs):
     ''' Plot histograms of all aggregate metrics 
         (n_user_posts,  n_user_subreddits, 
@@ -114,11 +117,9 @@ def plot_aggregates(df, figsize=(8,6),
         kwargs: keyword arguments for plt.subplots
     '''
     mdict = {'n_user_posts': ['author', '# posts', '# users'], 
-             'n_user_subreddits': ['author', '# subreddits', '# users'],
-             'n_subreddit_posts': ['subreddit', '# post', '# subreddits'], 
-             'n_subreddit_users': ['subreddit', '# users', '# subreddits']}
-    bins = bins or [50] * 4
-    log = log or [True] * 4
+             'n_user_subreddits': ['author', '# subreddits', '# users']}
+    bins = bins or [50] * 2
+    log = log or [True] * 2
     _, ax = plt.subplots(nrows=nrows, ncols=ncols, 
                          figsize=figsize, **kwargs)
     ax_idx = list(itertools.product(range(nrows), 
@@ -138,7 +139,6 @@ def plot_aggregates(df, figsize=(8,6),
         plt.show()
 
 
-# Functions to log and visualize dataset metrics
 def log_size(df, name, sdict=None, save_file=None):
     ''' Log (and save) dataset size at different stages
     Args:
@@ -162,7 +162,7 @@ def log_size(df, name, sdict=None, save_file=None):
     return sdict
 
 
-def plot_size_curve(sdict, save_file=None):
+def plot_size_log(sdict, save_file=None):
     ''' Plots change in dataset metrics (size, n_posts, etc)
         over preprocessing steps
     Args:

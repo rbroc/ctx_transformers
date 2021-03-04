@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from tools.preprocess import (merge_csv, add_aggregate_metrics, 
-                              plot_aggregates, update_aggregates, 
-                              log_size, encode_posts, plot_size_curve)
+from reddit.utils import (read_files, compute_aggregates, 
+                          plot_aggregates, update_aggregates, 
+                          log_size, plot_size_log)
 import fasttext
 from pathlib import Path
 from transformers import DistilBertTokenizer
@@ -10,16 +10,18 @@ from transformers import DistilBertTokenizer
 ### See to dos in notes ### 
 
 # Define paths
-RAW_PATH = Path('raw') / 'pushshift'
-PROCESSED_PATH = Path('processed') / 'pushshift'
-FIG_PATH = Path('figures')
-RAW_PATH.mkdir(exist_ok=True)
+RAW_PATH = Path('..') / 'data' / 'raw'
+RAW_PATH.mkdir(exist_ok=True, parents=True)
+PROCESSED_PATH = Path('..') / 'data' / 'processed'
 PROCESSED_PATH.mkdir(exist_ok=True)
-SIZELOG_PATH = Path('..') / 'data' / 'logs'
+FIG_PATH = Path('..') / 'data' / 'figures'
+FIG_PATH.mkdir(exist_ok=True)
+LOG_PATH = Path('..') / 'data' / 'logs'
+LOG_PATH.mkdir(exist_ok=True)
 
 # define params for filtering
-MIN_USER_POSTS = 5
-MIN_USER_SUBREDDITS = 5
+MIN_POSTS = 5
+MIN_SUBREDDITS = 5
 
 # Define language detection model and tokenizer
 langdetect = fasttext.load_model('utils/fasttext/lid.176.bin')
@@ -38,64 +40,64 @@ def preprocess():
     ''' Runs preprocessing on the dataset (filtering by number of users,
         subreddits, language, duplicates, etc...)'''
     print('Reading files...')
-    # Load and merge
-    df = merge_csv(PROCESSED_PATH)
-    df = df[~df['subreddit'].isnull()]
-    sizedict = log_size(df, 'raw', SIZELOG_PATH)
 
-    # REMOVE DUPLICATES HERE?
+    # Load and merge
+    df = read_files(PROCESSED_PATH)
+    df = df[~df['subreddit'].isnull()]
+    df = df.drop_duplicates(subset=['author', 
+                                    'selftext'])
+    ldict = log_size(df, 'filter_duplicates', 
+                     save_file=LOG_PATH)
+    print(f'\tPosts at load: {ldict["posts"][-1]}')
 
     # Filter users for min number of posts and subreddits
-    print('Filtering by user characteristics...')
-    df = add_aggregate_metrics(df, group_by='author', agg_fn='count', 
-                               colnames=['author', 'n_user_posts'])
-    df = add_aggregate_metrics(df, group_by='author', agg_fn=lambda x: x.nunique(), 
-                               colnames=['author', 'n_user_subreddits'], 
-                               target='subreddit')
-    df = df[(df['n_user_posts'] >= MIN_USER_POSTS) & \
-            (df['n_user_subreddits'] >= MIN_USER_SUBREDDITS)]
-    sizedict = log_size(df, sizedict, 'filter_users', SIZELOG_PATH)
+    print('Filtering by post/subreddit threshold...')
+    df = compute_aggregates(df, 
+                            group_by='author', 
+                            agg_fn='count', 
+                            colnames=['author', 
+                                      'n_user_posts'])
+    df = compute_aggregates(df, group_by='author', 
+                            agg_fn=lambda x: x.nunique(), 
+                            colnames=['author', 
+                                      'n_user_subreddits'], 
+                            target='subreddit')
+    df = df[(df['n_user_posts'] >= MIN_POSTS) & \
+            (df['n_user_subreddits'] >= MIN_SUBREDDITS)]
+    ldict = log_size(df, ldict, 'filter_users', LOG_PATH)
+    print(f'\tPosts at filter_users: {ldict["posts"][-1]}')
 
-    # Filter by language 
+    # Remove non-English posts
     print('Removing non-English posts...')
     df['lang'] = df['selftext'].apply(_language_detection)
     df = df[df['lang'] == 'en']
-    sizedict = log_size(df, sizedict, 'filter_language', SIZELOG_PATH)
-
-    # Drop duplicates
-    print('Dropping duplicates...')
-    df = df.drop_duplicates('selftext')
+    ldict = log_size(df, ldict, 'filter_lang', LOG_PATH)
     df = update_aggregates(df)
-    sizedict = log_size(df, sizedict, 'filter_duplicates', SIZELOG_PATH) 
+    print(f'\tPosts at filter_lang: {ldict["posts"][-1]}')
 
     # Log and save
     print('Saving filtered dataset...')
-    df = update_aggregates(df)
     fname = PROCESSED_PATH / 'filtered.txt'
     df.to_csv(fname, sep='\t', index=False, compression='gzip')
 
-    # Tokenize posts
-    df['selftext'] = df['selftext'].astype('str')
-    df = encode_posts(df, tokenizer)
-    sizedict = log_size(df, sizedict, 'tokenize', SIZELOG_PATH)
-    df.to_csv('processed/pushshift/encoded.txt', sep='\t', index=False, compression='gzip') # Define name above
 
     # Print dataset features
-    print(f'''There are {sizedict["users"][-1]} users, 
-              {sizedict["posts"][-1]} posts,
-              {sizedict["subreddits"][-1]} subreddits''')
-    print(f'Min, avg, max posts per user: {df.n_user_posts.min()}, \
-                                          {df.n_user_posts.mean()}, \
-                                          {df.n_user_posts.max()}')
-    print(f'Min, avg, max subreddits per user: {df.n_user_subreddits.min()}, \
-                                               {df.n_user_subreddits.mean()}, \
-                                               {df.n_user_subreddits.max()}')
+    print(f'''There are {ldict["users"][-1]} users, 
+                        {ldict["posts"][-1]} posts,
+                        {ldict["subreddits"][-1]} subreddits
+         ''')
+    pmin, pmean, pmax = df.n_user_posts.agg(['min', 'max', 'mean'])
+    smin, smean, smax = df.n_user_subeddits.agg(['min', 'max', 'mean'])
+    print(f'Min, avg, max posts per user: {pmin}, {pmean}, {pmax}')
+    print(f'Min, avg, max subreddits per user: {smin}, {smean}, {smax)}')
 
     # Save dataset plots
-    plot_aggregates(df, save_file=str(FIG_PATH/'pushshift_descriptives.png')) # Define filename above
+    fname_agg = str(FIG_PATH / 'dataset_metrics.png')
+    plot_aggregates(df, save_file=fname_agg)
 
     # Plot dataset size
-    plot_size_curve(sizedict, save_file=str(FIG_PATH/'pushshift_size.png')) # Define filename above
+    fname_size = str(FIG_PATH / 'dataset_size_log.png')
+    plot_size_log(ldict, save_file=fname_size)
 
 
 if __name__ == '__main__':

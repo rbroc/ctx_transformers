@@ -16,8 +16,6 @@ if __name__ == '__main__':
         install_requires=['numpy', 'pandas', 'tensorflow', 'keras', 'seaborn', 'official', 'transformers'],
         packages=find_packages(exclude=['tests']),
         license='MIT',
-        #package_data={'raw': ['datasets/*']
-        #              },
         zip_safe=False,
         download_url=(f"https://github.com/rbroc/personality_reddit/archive/{__version__}.tar.gz")
     )
