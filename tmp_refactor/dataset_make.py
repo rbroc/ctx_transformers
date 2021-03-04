@@ -40,28 +40,14 @@ def make_datasets():
                                 'attention_mask': lambda x: json.loads(x)}, 
                                 sep='\t')
 
-    # One-hot encoding of subreddits
-    print('One-hot encoding subreddits...')
-    df = df.sort_values('created_utc').reset_index(drop=True)
-    df['one_hot_subreddit'] = pd.get_dummies(df['subreddit']).values.tolist()
-    df['label_subreddit'] = df['one_hot_subreddit'].apply(lambda x: np.where(np.array(x) == 1)[0][0])
 
-    # Store label mapping
-    print('Saving label mappings...')
-    label_map = df[['subreddit', 'one_hot_subreddit']]\
-                .groupby('subreddit')\
-                .aggregate('first')
-    label_map['one_hot_subreddit'] = [np.where(np.array(l) == 1)[0][0]
-                                      for l in label_map['one_hot_subreddit']]
-    label_dict = dict(zip(list(label_map['one_hot_subreddit']), 
-                          list(label_map.index)))
-    json.dump(label_dict, open(str(LABEL_PATH / 'reddit_2008.json'), 'w'))
+    # MAKE TOKENIZATION STEP HERE
 
-    # Plot distribution over whole dataset
-    print('Saving subreddit distribution...')
-    plot_subreddit_distribution(d=df, 
-                                save=True, 
-                                fname=str(FIG_PATH/'subreddit_distribution.png'))
+    # MAKE DATASET CREATION FOR NEW PARADIGM HERE
+
+    # GIVE EXAMPLES AN ID
+
+    # THINK A BIT ABOUT HOW TO STORE
 
     # Create and save toy and full datasets
     print('Creating and saving toy dataset...')

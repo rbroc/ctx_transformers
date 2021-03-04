@@ -1,22 +1,30 @@
 # UP NEXT
 
+# To dos:
+###### RERUN PREPROCESSING
+# Drop duplicates early on
+# Subset string?
+# What to do with aggregation by subreddit? Remove?
+# Make number of posts subreddits specifiable on command line
+# Define meaningful paths
+
+##### SPLIT UTILS
 Split utils for:
 - Dataset building
 - TFRecord?
 - Computations of sort?
 - Preprocessing
 
-Open
-Preprocess (tmp)
-Make_dataset (tmp)
-__init__ utils
-Utils file
+#### RERUN TOKENIZATION
+- seprate file
+- separate folder
 
-# Refactor dataset/preprocessing (start from already refactored)
-    - Add id to each example
-    - Expand nr users
+#### RERUN MAKE_DATASET
+    - Need new utils for triplet loss dataset 
+    - Add ID to example
+    - Store mapping of ids somewhere
     - Reverse dataset at save
-    - More years/data
+    - More years of data
 
 # Edit tfrecord for new data format
 
@@ -26,7 +34,7 @@ LONGER TERM
 - Check dependencies
 - Develop viz module
 - Change package name
-- Make dockerfile
+- Edit dockerfile
 - Add gradient accumulation?
 - Add to loss distance between n and anch
 - Rerun baseline model with new scripts
