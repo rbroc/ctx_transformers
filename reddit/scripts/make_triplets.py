@@ -4,32 +4,18 @@ from pathlib import Path
 from transformers import AutoTokenizer
 import argparse
 import json
-from reddit.utils import tokenize, read_files
-
-# NEXT
-# Add some preprocessing (url stripping) - PREVIOUS STEPS
-# Tokenize
-# Stack and save as tfrecords
-# Refactor utils?
-
-
-#parser.add_argument('--tokenizer', type=str, 
-#                    default='distilbert-base-uncased',
-#                    help='Weights of pretrained tokenizer')
-#tokenizer = AutoTokenizer.from_pretrained(weights)
-#df = tokenize(df, tokenizer)
+from reddit.utils import read_files
 
 DATA_PATH = Path('..') / 'data'
 PROCESSED_PATH = DATA_PATH  /'filtered'
 TRIPLET_PATH = DATA_PATH / 'triplet'
 TRIPLET_PATH.mkdir(parents=True, exist_ok=True)
-DATASET_PATH = DATA_PATH / 'datasets' / 'triplet' # maybe remove?
-DATASET_PATH.mkdir(parents=True, exist_ok=True) # maybe remove?
+DATASET_PATH = DATA_PATH / 'datasets' / 'triplet'
+DATASET_PATH.mkdir(parents=True, exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=0,
                     help='Seed for random call')
-
 
 def _pick_examples(user_df):
     ''' Picks one example per user'''
@@ -63,8 +49,8 @@ def _make_json(sub_df):
     return adict
 
 
-def _make_triplet_examples(seed):
-    df = read_files(PROCESSED_PATH)
+def make_triplet_examples(seed):
+    df = read_files(PROCESSED_PATH, drop_duplicates=False)
     
     # Make examples
     np.random.seed()
@@ -99,10 +85,9 @@ def _make_triplet_examples(seed):
         d = _make_json(sub_df)
         with open(json_outfile) as fh:
             fh.write(json.dumps(d))
-    del d
-    del sub_df
+    del d, sub_df
 
 
 if __name__=="__main__":
     args = parser.parse_args()
-    _make_triplet_examples(args.seed)
+    make_triplet_examples(args.seed)

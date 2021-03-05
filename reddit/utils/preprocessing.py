@@ -7,7 +7,7 @@ import itertools
 
 
 def read_files(dir, sep='\t', drop_duplicates=True, 
-               compression='gzip'):
+               compression='gzip', **kwargs):
     ''' Read in a list of files and return merged dataframe 
     Args:
         dir (str): folder to read files from
@@ -18,12 +18,12 @@ def read_files(dir, sep='\t', drop_duplicates=True,
         comptession (str): type of compression of the input
             files
     '''
-    flist = glob.glob(dir)
+    flist = glob.glob(str(dir / '*'))
     for idx, f in enumerate(flist):
         print(f'Reading file {idx+1} out of {len(flist)}')
         try:
             subdf = pd.read_csv(f, sep=sep, 
-                                compression=compression)
+                                compression=compression, **kwargs)
             if idx == 0:
                 df = subdf
             else:

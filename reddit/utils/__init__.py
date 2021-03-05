@@ -3,7 +3,8 @@ from .preprocessing import (read_files,
                             plot_aggregates, 
                             update_aggregates, 
                             log_size, plot_size_log)
-from .tokenization import tokenize
+from .tfrecords import (save_tfrecord_triplet, 
+                        load_tfrecord_triplet)
 from .utils import (split_dataset, average_anchor, 
                     compute_mean_pairwise_distance)
 
@@ -13,7 +14,8 @@ __all__ = ['read_files',
            'plot_aggregates',
            'update_aggregates',
            'log_size', 'plot_size_log',
-           'tokenize',
+           'save_tfrecord_triplet',
+           'load_tfrecord_triplet',
            'split_dataset', 
            'average_anchor', 
            'compute_mean_pairwise_distance']

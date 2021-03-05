@@ -1,32 +1,11 @@
 # UP NEXT
-- Names for various prep steps (and scripts?)
-- Rename utils and refactor utils
-    - Move to file when needed?
-    - Is tokenization a script rather than util?
-
-SET UP TOKENIZATION
-- separate file
-- separate folder for out
-
-MAKE DATASET
-- Stack and tf record
-
-##### SPLIT UTILS
-Split utils for:
-- Dataset building
-- TFRecord?
-- Computations of sort?
-- Preprocessing
-
+# Refactor utils? - Move utils to scripts folder (change into "preprocessing"?)
+# Try running preprocessing to check things are alright
+# Some tests (just to check things are cross-referenced correctly)
+- Add some preprocessing (url stripping)?
 
 #### RERUN MAKE_DATASET
-    - Need new utils for make triplet loss dataset 
-    - Add ID to example
-    - Store mapping of ids somewhere
-    - Reverse dataset at save
-    - More years of data
-
-# Edit tfrecord for new data format
+    - More years of data?
 
 # Quick try on notebook to make sure strategy works
 
