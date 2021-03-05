@@ -1,8 +1,9 @@
 # UP NEXT
 # Refactor utils? - Move utils to scripts folder (change into "preprocessing"?)
+# Add url stripping etc to download script - and test it (on one month)
 # Try running preprocessing to check things are alright
 # Some tests (just to check things are cross-referenced correctly)
-- Add some preprocessing (url stripping)?
+
 
 #### RERUN MAKE_DATASET
     - More years of data?
