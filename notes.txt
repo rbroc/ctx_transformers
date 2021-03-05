@@ -3,12 +3,8 @@
 # Add url stripping etc to download script - and test it (on one month)
 # Try running preprocessing to check things are alright
 # Some tests (just to check things are cross-referenced correctly)
-
-
-#### RERUN MAKE_DATASET
-    - More years of data?
-
-# Quick try on notebook to make sure strategy works
+# More years of data?
+# Try on colab to make sure strategy works
 
 LONGER TERM
 - Check dependencies / setup.py
@@ -16,12 +12,11 @@ LONGER TERM
 - Change package name
 - Edit dockerfile
 - Add gradient accumulation?
-- Add to loss distance between n and anch
+- Add to loss distance between n and anch?
 - Rerun baseline model with new scripts
 
 Notes: 
 - Margin, grad accumulation, model type as manipulations
 - No room for optimizer in file naming protocol!
 - Tolerance for difference in tests set to 5e-7
-- In FFN anchor is averaged
 - Average distance from all encodings removed
