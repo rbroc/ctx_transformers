@@ -1,13 +1,15 @@
 # UP NEXT
 - Names for various prep steps (and scripts?)
-- Rename utils
+- Rename utils and refactor utils
+    - Move to file when needed?
+    - Is tokenization a script rather than util?
 
 SET UP TOKENIZATION
 - separate file
 - separate folder for out
 
-SET UP MAKE DATASET
-- Need new utils!
+MAKE DATASET
+- Stack and tf record
 
 ##### SPLIT UTILS
 Split utils for:

@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import timeit
 
-# Functions for tokenization
 def _tknz(x, tokenizer, n_wds):
     ''' Util function to tokenize text '''
     out = tokenizer.encode_plus(' '.join(x.split()[:n_wds]),

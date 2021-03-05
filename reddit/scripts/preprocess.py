@@ -7,7 +7,6 @@ from reddit.utils import (read_files, compute_aggregates,
                           log_size, plot_size_log)
 import fasttext
 from pathlib import Path
-from transformers import DistilBertTokenizer
 import argparse
 
 
@@ -20,15 +19,14 @@ parser.add_argument('--min-subreddits', type=int, default=5,
 
 
 # Define paths
-RAW_PATH = Path('..') / 'data' / 'raw'
+DATA_PATH = Path('..') / 'data'
+RAW_PATH = DATA_PATH / 'raw'
 RAW_PATH.mkdir(exist_ok=True, parents=True)
-PROCESSED_PATH = Path('..') / 'data' / 'processed'
+PROCESSED_PATH = DATA_PATH / 'filtered'
 PROCESSED_PATH.mkdir(exist_ok=True)
-FIG_PATH = Path('..') / 'data' / 'figures'
+FIG_PATH = DATA_PATH / 'figures'
 FIG_PATH.mkdir(exist_ok=True)
-LOG_PATH = Path('..') / 'data' / 'logs'
-LOG_PATH.mkdir(exist_ok=True)
-TMP_PATH = Path('..') / 'data' / 'tmp'
+TMP_PATH = DATA_PATH / 'tmp'
 TMP_PATH.mkdir(exist_ok=True)
 FASTTEXT_FILE = TMP_PATH / 'lid.176.bin'
 
@@ -36,7 +34,6 @@ FASTTEXT_FILE = TMP_PATH / 'lid.176.bin'
 FASTTEXT_URL = 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin'
 wget.download(FASTTEXT_URL, out=FASTTEXT_FILE)
 langdetect = fasttext.load_model(FASTTEXT_FILE)
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
 
 # Define useful functions
@@ -59,7 +56,7 @@ def preprocess(min_posts=5, min_subreddits=5):
     df = df.drop_duplicates(subset=['author', 
                                     'selftext'])
     ldict = log_size(df, 'filter_duplicates', 
-                     save_file=LOG_PATH)
+                     save_file=PROCESSED_PATH)
     print(f'\tPosts at load: {ldict["posts"][-1]}')
 
     # Filter users by min number of posts and subreddits
@@ -76,23 +73,31 @@ def preprocess(min_posts=5, min_subreddits=5):
                             target='subreddit')
     df = df[(df['n_user_posts'] >= min_posts) & \
             (df['n_user_subreddits'] >= min_subreddits)]
-    ldict = log_size(df, ldict, 'filter_users', LOG_PATH)
+    ldict = log_size(df, ldict, 'filter_users', PROCESSED_PATH)
     print(f'\tPosts at filter_users: {ldict["posts"][-1]}')
 
     # Remove non-English posts
     print('Removing non-English posts...')
     df['lang'] = df['selftext'].apply(_language_detection)
     df = df[df['lang'] == 'en']
-    ldict = log_size(df, ldict, 'filter_lang', LOG_PATH)
+    ldict = log_size(df, ldict, 'filter_lang', PROCESSED_PATH)
     print(f'\tPosts at filter_lang: {ldict["posts"][-1]}')
     os.remove(FASTTEXT_FILE)
     os.rmdir(TMP_PATH)
     
-    # Log and save
+    # Log and save (split if files with 1000 users each)
     print('Saving filtered dataset...')
     df = update_aggregates(df)
-    fname = PROCESSED_PATH / 'filtered.txt'
-    df.to_csv(fname, sep='\t', index=False, compression='gzip')
+    df['user_id'] = df['author'].map(dict(zip(df.author.unique(),
+                                              range(df.author.nunique()))))
+    idxs = np.arange(0, ldict['users'][-1], 1000)
+    idxs = idxs.append(ldict['users'][-1])
+    for idx in idxs[:-1]:
+        print(f'Saving {idx} of {idxs[-1]}')
+        subdf = df[df['author'].isin(df.author.unique()[idx:idx+1])]
+        fname = PROCESSED_PATH / f'filtered_{idx+1}.txt'
+        subdf.to_csv(fname, sep='\t', index=False, compression='gzip')
+    del subdf
 
     # Print dataset features
     print(f'''There are {ldict["users"][-1]} users, 

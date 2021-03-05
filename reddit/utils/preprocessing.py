@@ -6,7 +6,8 @@ import glob
 import itertools
 
 
-def read_files(dir, sep='\t', drop_duplicates=True):
+def read_files(dir, sep='\t', drop_duplicates=True, 
+               compression='gzip'):
     ''' Read in a list of files and return merged dataframe 
     Args:
         dir (str): folder to read files from
@@ -14,12 +15,15 @@ def read_files(dir, sep='\t', drop_duplicates=True):
         drop_duplicates (bool): whether duplicates should
             be removed (if so, drops duplicates every 5
             files)
+        comptession (str): type of compression of the input
+            files
     '''
     flist = glob.glob(dir)
     for idx, f in enumerate(flist):
         print(f'Reading file {idx+1} out of {len(flist)}')
         try:
-            subdf = pd.read_csv(f, sep=sep)
+            subdf = pd.read_csv(f, sep=sep, 
+                                compression=compression)
             if idx == 0:
                 df = subdf
             else:
