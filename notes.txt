@@ -1,19 +1,22 @@
-# UP NEXT
-# Rerun preprocessing
-# More years of data?
-# Try on colab to make sure strategy works
+Dataset:
+- Rerun preprocessing
+- More years of data?
 
-LONGER TERM
-- Check dependencies / setup.py
-- Develop viz module
+Longer term:
 - Change package name
-- Edit dockerfile
-- Add gradient accumulation?
-- Add to loss distance between n and anch?
-- Rerun baseline model with new scripts
+- Develop online visualization helper for training
+- Add gradient accumulation option?
+- Add maximize distance between negative and anchor to loss?
+- Rerun baseline models
+    - Non fine-tuned BERT
+    - Simple classifier
+    - FFN with increasing complexity
 
-Notes: 
-- Margin, grad accumulation, model type as manipulations
-- No room for optimizer in file naming protocol!
-- Tolerance for difference in tests set to 5e-7
-- Average distance from all encodings removed
+Notes:
+- Rerun fine-tuning
+    - Margin
+    - Grad accumulation
+    - Loss function
+    - Model type
+- Any manipulation needed for the optimizer?
+- Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
