@@ -3,19 +3,22 @@ PACKAGES = find_packages()
 
 __version__ = '0.0.1'
 
-
 if __name__ == '__main__':
 
     setup(
         name="reddit",
         version=__version__,
-        description="Personality encoders",
+        description="Training personality encoders from Reddit posts",
         maintainer='Roberta Rocca',
         maintainer_email='rbrrcc@gmail.com',
         url='http://github.com/rbroc/personality_reddit',
-        install_requires=['numpy', 'pandas', 'tensorflow', 'keras', 'seaborn', 'official', 'transformers'],
+        install_requires=['numpy', 'pandas>=1.1.0', 'tensorflow>=2.4.0', 
+                          'keras>=2.4.0', 'seaborn', 'matplotlib',
+                          'official', 'transformers==4.4.0',
+                          'ztsd', 'fasttext', 'pydot'], 
         packages=find_packages(exclude=['tests']),
         license='MIT',
         zip_safe=False,
-        download_url=(f"https://github.com/rbroc/personality_reddit/archive/{__version__}.tar.gz")
+        download_url=(f"https://github.com/rbroc/personality_reddit/archive/{__version__}.tar.gz"),
+        python_requires='>=3.6',
     )
