@@ -1,5 +1,3 @@
-from .tfrecords import (save_tfrecord_triplet, 
-                        load_tfrecord_triplet)
 from .losses import TripletLossBase, TripletLossFFN
 from .models import BatchTransformer, BatchTransformerFFN
 from .logging import (Logger, ModelCheckpoint,

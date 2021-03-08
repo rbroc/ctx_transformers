@@ -8,7 +8,7 @@ FEATURE_DESCRIPTION_TRIPLET = {
     'input_ids': FixedLenFeature([], tf.string),
     'attention_mask': FixedLenFeature([], tf.string),
     'id': FixedLenFeature([], tf.string)
-}
+    }
 
 
 def _make_example_triplet(input_ids, attention_mask, id):

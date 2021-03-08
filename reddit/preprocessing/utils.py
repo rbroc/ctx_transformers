@@ -11,11 +11,11 @@ def read_files(dir, sep='\t', drop_duplicates=True,
     ''' Read in a list of files and return merged dataframe 
     Args:
         dir (str): folder to read files from
-        sep (str): separator
+        sep (str): csv file separator
         drop_duplicates (bool): whether duplicates should
             be removed (if so, drops duplicates every 5
             files)
-        comptession (str): type of compression of the input
+        compression (str): type of compression of the input
             files
     '''
     flist = glob.glob(str(dir / '*'))
