@@ -39,7 +39,8 @@ def filter_line(ldict, posts, target_fields):
         (ldict['num_crossposts'] == 0):
         ldict = {k: ldict[k] for k in target_fields}
         posts.append(ldict)
-        return ldict, posts
+    return posts
+    
 
 # Define logging function
 def save_file(posts, year, month, idx, fprefix):

@@ -142,13 +142,14 @@ def log_size(df, name, sdict=None, save_file=None):
             dictionary at specified path as json
     '''
     if sdict is None:
-        sdict = dict(zip(['names', 'users', 
-                          'posts','subreddits'],
-                          [[]]*4))
+        sdict = {}
+        for k in ['names', 'users', 
+                  'posts','subreddits']:
+            sdict[k] = []
     sdict['names'].append(name)
-    sdict['users'].append(df.author.nunique())
+    sdict['users'].append(len(set(df['author'].tolist())))
     sdict['posts'].append(df.shape[0])
-    sdict['subreddits'].append(df.subreddit.nunique())
+    sdict['subreddits'].append(len(set(df['subreddit'].tolist())))
     if save_file is not None:
         json.dump(sdict, open(save_file, 'w'))
     return sdict
