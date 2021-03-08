@@ -4,7 +4,7 @@ from pathlib import Path
 from transformers import AutoTokenizer
 import argparse
 import json
-from reddit.utils import read_files
+from utils import read_files
 
 DATA_PATH = Path('..') / 'data'
 PROCESSED_PATH = DATA_PATH  /'filtered'
@@ -82,7 +82,7 @@ def make_triplet_examples(seed=0):
 
     # Concatenate and save
     df = pd.concat([df, pos_df, neg_df], ignore_index=False)
-    idxs = np.arange(0, users.shape[0], 10000)
+    idxs = np.arange(0, users.shape[0], 1000)
     idxs = idxs.append(users.shape[0])
     for idx in idxs[:-1]:
         outfile = TRIPLET_PATH / f'triplet_{idx+1}.txt'

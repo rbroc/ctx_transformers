@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import wget
 import os
-from reddit.utils import (read_files, compute_aggregates, 
-                          plot_aggregates, update_aggregates, 
-                          log_size, plot_size_log)
+from utils import (read_files, compute_aggregates, 
+                   plot_aggregates, update_aggregates, 
+                   log_size, plot_size_log)
 import fasttext
 from pathlib import Path
 import argparse

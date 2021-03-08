@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from reddit.utils import (read_files,
-                          save_tfrecord_triplet)
+from utils import read_files
+from reddit.utils import save_tfrecord_triplet
 from pathlib import Path
 import json
 import tensorflow as tf
@@ -46,7 +46,7 @@ def make_tensorflow_dataset(n_shards=1000):
                                         [lambda x: json.loads(x)]*2)),
                     drop_duplicates=False)
     ds = tf.data.Dataset.from_generator(lambda: _generate_example(df),
-                                        output_types=tuple([tf.int32] * 3))
+                                        output_types=tuple([tf.int32]*3))
     save_tfrecord_triplet(ds, n_shards=n_shards,
                           path=str(DATASET_PATH),
                           compression='GZIP')

@@ -1,9 +1,5 @@
 # UP NEXT
-# Make readme
-# Refactor utils? - Move utils to scripts folder (change into "preprocessing"?)
-# Add url stripping etc to download script - and test it (on one month)
-# Try running preprocessing to check things are alright
-# Some tests (just to check things are cross-referenced correctly)
+# Rerun preprocessing
 # More years of data?
 # Try on colab to make sure strategy works
 
