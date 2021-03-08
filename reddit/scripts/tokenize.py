@@ -35,13 +35,14 @@ def tokenize(weights='distilbert-base-uncased',
     ''' Encodes all posts in the dataset using a given 
         huggingface tokenizer
     Args:
-        weights ()
-        tokenizer (Tokenizer): huggingface tokenizer object
+        weights (str): path/name to/of weights for HuggingFace's
+            tokenizer object
         n_wds (int): number of words to truncate input at 
             (for efficiency,truncation would happen anyway
             at token level)
         batch_size (int): how many posts to encode at a 
-            time
+            time (tokenization is split in batches for speed 
+            and to add verbose mode)
     '''
     tknzr = AutoTokenizer.from_pretrained(weights)
     for f in triplet_files:

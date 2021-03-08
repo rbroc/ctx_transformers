@@ -49,7 +49,14 @@ def _make_json(sub_df):
     return adict
 
 
-def make_triplet_examples(seed):
+def make_triplet_examples(seed=0):
+    ''' For each user, selects which posts are used as anchor,
+        positive example, and negative example. Stores this info 
+        in dataframes (splits into several chunks for ease of 
+        processing and storage reasons) and in a json file
+    Args:
+        seed (int): seed for np.random.seed call
+    '''
     df = read_files(PROCESSED_PATH, drop_duplicates=False)
     
     # Make examples

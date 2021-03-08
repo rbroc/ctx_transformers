@@ -17,6 +17,7 @@ parser.add_argument('--n-shards', type=int, default=1000,
                     'TFRecord will be sharded.')
 
 def _generate_example(df):
+    ''' Generator for tf.data.Dataset'''
     for u in df.target_user.unique():
         udf = df[df['target_user'] == u]
         anchor = udf[udf['example_type']=='anchor']
@@ -35,6 +36,11 @@ def _generate_example(df):
         yield(iids, masks, np.array(u))
 
 def make_tensorflow_dataset(n_shards=1000):
+    ''' Creates tensorflow dataset for triplet network and stores 
+        as tfrecord over several shards 
+    Args:
+        n_shards (int): number of shards the dataset is split across
+    '''
     df = read_files(ENCODED_DATA_PATH, 
                     converters=dict(zip(['input_ids', 'attention_mask'],
                                         [lambda x: json.loads(x)]*2)),

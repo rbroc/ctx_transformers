@@ -6,6 +6,7 @@ from pathlib import Path
 import json
 import itertools
 import pandas as pd
+import re
 
 
 # Directory params for download
@@ -25,17 +26,17 @@ months = ['0' + str(i) for i in range(1, 10)] + [str(i) for i in [10, 11, 12]]
 ym_comb = itertools.product(years, months)
 
 # Filtering params
-target_fields = ['author', 'created_utc', 'domain', 'id', 
-                'num_comments', 'num_crossposts', 'score', 
-                'selftext', 'subreddit', 'subreddit_id',
-                'title']
+target_fields = ['author', 'created_utc', 'id', 
+                'num_comments', 'score', 'selftext', 
+                'subreddit', 'title']
 
 # Define submission filtering function
 def filter_line(ldict, posts, target_fields):
     if (ldict['over_18'] is False) and \
         (ldict['selftext'] not in ['', '[deleted]', '[removed]']) and \
         (ldict['author'] != '[deleted]') and \
-        (ldict['is_self'] == True):
+        (ldict['is_self'] == True) and \
+        (ldict['num_crossposts'] == 0):
         ldict = {k: ldict[k] for k in target_fields}
         posts.append(ldict)
         return ldict, posts

@@ -46,8 +46,14 @@ def _language_detection(s):
 
 
 def preprocess(min_posts=5, min_subreddits=5):
-    ''' Runs preprocessing on the dataset (filtering by number of users,
-        subreddits, language, duplicates, etc...)'''
+    ''' Runs preprocessing on the dataset (filtering duplicates,
+        filtering by minimum number of posts per user, removing 
+        non-English posts) 
+    Args:
+        min_posts (int): minimum number of posts per user
+        min_subreddits (int): mininum number of subreddits to 
+            which the user has to have contributed    
+    '''
     print('Reading files...')
 
     # Load and merge
