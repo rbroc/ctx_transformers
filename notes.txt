@@ -1,6 +1,5 @@
 Dataset:
 - Rerun preprocessing
-- More years of data?
 
 Longer term:
 - Change package name
@@ -20,3 +19,4 @@ Notes:
     - Model type
 - Any manipulation needed for the optimizer?
 - Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
+- More years of data?

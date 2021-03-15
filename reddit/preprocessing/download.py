@@ -7,6 +7,9 @@ import json
 import itertools
 import pandas as pd
 import re
+import argparse
+import wget
+import fasttext
 
 
 # Directory params for download
@@ -14,11 +17,10 @@ DOWNLOAD_DIR = Path('..') / 'data' / 'tmp'
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 SAVE_DIR = Path('..') / 'data' / 'raw'
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
-
+FASTTEXT_FILE = DOWNLOAD_DIR / 'lid.176.bin'
 
 # Url for requests
 URL = 'https://files.pushshift.io/reddit/submissions/'
-
 
 # Pushshift files params
 years = [str(i) for i in [2018, 2019]]
@@ -30,6 +32,13 @@ target_fields = ['author', 'created_utc', 'id',
                 'num_comments', 'score', 'selftext', 
                 'subreddit', 'title']
 
+
+# Language detection model
+FASTTEXT_URL = 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin'
+wget.download(FASTTEXT_URL, out=str(FASTTEXT_FILE))
+langdetect = fasttext.load_model(str(FASTTEXT_FILE))
+
+
 # Define submission filtering function
 def filter_line(ldict, posts, target_fields):
     if (ldict['over_18'] is False) and \
@@ -40,17 +49,33 @@ def filter_line(ldict, posts, target_fields):
         ldict = {k: ldict[k] for k in target_fields}
         posts.append(ldict)
     return posts
-    
+
+# Define language filtering function
+def _language_detection(s):
+    try:
+        s = re.sub('\n', ' ', s)
+        return langdetect.predict(s)[0][0].split('__')[2]
+    except:
+        return 'unk'
+
+# Define dataframe-wide filtering function
+def filter_df(df):
+    df = df.drop_duplicates(subset=['author', 'selftext'])
+    df = df[~df['subreddit'].isnull()]
+    df['lang'] = df['selftext'].apply(_language_detection)
+    df = df[df['lang'] == 'en']
+    return df
 
 # Define logging function
 def save_file(posts, year, month, idx, fprefix):
     idx += 1
-    df = pd.DataFrame(posts)
-    outfile = SAVE_DIR / f'{year}_{month}_{idx*100000}.txt'
+    df = filter_df(pd.DataFrame(posts))
+    outfile = SAVE_DIR / f'{year}_{month}_{idx}.txt'
     df.to_csv(outfile, sep='\t', index=False, compression='gzip')
-    print(f'Saving {fprefix} {idx*100000}...')
+    print(f'Saving {fprefix} {idx}...')
     posts = []
     return posts, idx
+
 
 # Main function
 def download_and_extract():
@@ -90,10 +115,10 @@ def download_and_extract():
                     if len(posts) == 100000:
                         posts, idx = save_file(posts, year, month, idx, fprefix)
                 if posts != []:
-                    save_idx = idx * 100000 + len(posts)
-                    outfile = SAVE_DIR / f'{year}_{month}_{save_idx}.txt'
-                    pd.DataFrame(posts).to_csv(outfile, sep='\t', index=False, 
-                                               compression='gzip')
+                    idx += 1
+                    outfile = SAVE_DIR / f'{year}_{month}_{idx}.txt'
+                    df = filter_df(pd.DataFrame(posts))
+                    df.to_csv(outfile, sep='\t', index=False, compression='gzip')
 
         # zst format
         elif cformat == '.zst':
@@ -105,11 +130,10 @@ def download_and_extract():
                         chunk = reader.read(8192).decode()
                         if not chunk:
                             if posts != []:
-                                save_idx = idx * 100000 + len(posts)
-                                outfile = SAVE_DIR / f'{year}_{month}_{save_idx}.txt'
-                                pd.DataFrame(posts).to_csv(outfile, sep='\t', 
-                                                           index=False, 
-                                                           compression='gzip')
+                                idx += 1
+                                outfile = SAVE_DIR / f'{year}_{month}_{idx}.txt'
+                                df = filter_df(pd.DataFrame(posts))
+                                df.to_csv(outfile, sep='\t', index=False, compression='gzip')
                             break
                         lines = (buffer + chunk).split('\n')
                         for line in lines[:-1]:
@@ -121,6 +145,7 @@ def download_and_extract():
     
         os.remove(DOWNLOAD_DIR / (fprefix + cformat))
 
+    os.remove(FASTTEXT_FILE)
     os.rmdir(DOWNLOAD_DIR)
 
 
