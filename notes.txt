@@ -1,7 +1,3 @@
-Dataset:
-- Line-by-line reading at filter.py
-
-
 Longer term:
 - Change package name
 - Develop online visualization helper for training
