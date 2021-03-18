@@ -33,6 +33,8 @@ def prefilter_authors(min_posts=5, min_subreddits=5):
         try:
             df = pd.read_csv(f, sep='\t', compression='gzip', 
                              lineterminator='\n')
+            df = df.dropna()
+            df = df.drop_duplicates(subset=['author', 'text'])
             count_posts_raw += df.shape[0]
             adf = df[['author','subreddit']].groupby('author')\
                                             .agg(['count', 
@@ -59,7 +61,7 @@ def prefilter_authors(min_posts=5, min_subreddits=5):
     all_adf = all_adf.groupby('author', as_index=False).sum()
     all_adf = all_adf[(all_adf['n_user_posts']>=min_posts) &
                       (all_adf['n_user_subreddits']>=min_subreddits)]
-    all_adf.to_csv(str(META_DIR/'valid_users.txt'),
+    all_adf.to_csv(str(META_DIR/'valid_users.txt.gz'),
                    index=False, sep='\t', compression='gzip')
     
     # Log number of posts/authors so far:
@@ -67,7 +69,7 @@ def prefilter_authors(min_posts=5, min_subreddits=5):
     
     # Read files again and remove authors
     count_posts_filtered = 0
-    all_adf = pd.read_csv(str(META_DIR/'valid_users.txt'),
+    all_adf = pd.read_csv(str(META_DIR/'valid_users.txt.gz'),
                           sep='\t', compression='gzip', 
                           lineterminator='\n')
     valid_users = all_adf['author'].unique().tolist()
@@ -76,7 +78,7 @@ def prefilter_authors(min_posts=5, min_subreddits=5):
             df = pd.read_csv(f, sep='\t', compression='gzip', 
                              lineterminator='\n')
             df = df[df['author'].isin(valid_users)]
-            outfile = f.rstrip('.txt') + '_filtered.txt'
+            outfile = f.rstrip('.txt.gz') + '_filtered.txt.gz'
             df.to_csv(outfile, sep='\t', index=False, compression='gzip')
             count_posts_filtered += df.shape[0]
             print(f'\tTotal posts at {f}: {count_posts_filtered}')

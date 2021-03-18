@@ -4,17 +4,16 @@ import os
 from pathlib import Path
 import argparse
 import glob
+import csv
+import gzip
+import random
 import seaborn as sns
 from matplotlib import pyplot as plt
-from pandarallel import pandarallel
-
-# Initialize parallel pandas
-pandarallel.initialize(nb_workers=3)
 
 # Define paths
 DATA_PATH = Path('..') / 'data'
 RAW_PATH = DATA_PATH / 'raw'
-RAW_PATH.mkdir(exist_ok=True, parents=True)
+
 PROCESSED_PATH = DATA_PATH / 'filtered'
 PROCESSED_PATH.mkdir(exist_ok=True)
 AUTHOR_PATH = DATA_PATH / 'users'
@@ -29,17 +28,7 @@ parser.add_argument('--min-posts', type=int, default=5,
 parser.add_argument('--min-subreddits', type=int, default=5,
                     help='Minimum number of subreddits per user')
 
-# Useful function
-def _split_author_file(gdf):
-    fn = AUTHOR_PATH / f'{gdf.author.values[0]}.txt'
-    if os.path.exists(fn):
-        padf = pd.read_csv(fn, sep='\t', compression='gzip', 
-                           lineterminator='\n')
-        gdf = pd.concat([padf, gdf], ignore_index=True)
-    gdf.to_csv(fn, compression='gzip', sep='\t', index=False)
-
-
-def preprocess(min_posts=5, min_subreddits=5):
+def filter(min_posts=5, min_subreddits=5):
     ''' Runs preprocessing on the dataset (filtering duplicates,
         filtering by minimum number of posts per user, removing 
         non-English posts) 
@@ -55,25 +44,36 @@ def preprocess(min_posts=5, min_subreddits=5):
 
     # Split global files into files by author
     print(f'Splitting files into single-author files...')
-    for fidx, f in enumerate(fs[1:]):
+    dropped = 0
+    for fidx, f in enumerate(fs):
         print(f'{fidx+1} of {len(fs)}')
-        pd.read_csv(f, sep='\t', compression='gzip', 
-                    lineterminator='\n').groupby('author')\
-          .parallel_apply(_split_author_file)
+        with gzip.open(f, 'rt') as ifile:
+            rdr = csv.reader(ifile, delimiter='\t')
+            for row in rdr:
+                if len(row) == 8:
+                    ofile = AUTHOR_PATH / f'{row[0]}.txt' 
+                    with open(ofile, 'a') as ofh:
+                        ofh.write('\t'.join(row))
+                else:
+                    dropped += 1
+        print(f'\t{dropped} invalid rows so far')
         os.remove(f)
     os.rmdir(RAW_PATH)
     
     # Filter author files
     afs = glob.glob(str(AUTHOR_PATH/'*'))
+    random.shuffle(afs)
     print(f'Filtering author files...')
     group_count = 0
     n_groups = 1
+    cols = ['author', 'created_utc', 'id', 
+            'num_comments', 'score', 'selftext',
+            'subreddit', 'title', 'lang']
 
     for fidx, f in enumerate(afs):
         # Read file
-        adf = pd.read_csv(f, sep='\t', compression='gzip', 
-                          lineterminator='\n')
-        
+        adf = pd.read_csv(f, sep='\t', header=False)
+        adf.columns = cols
         # Remove duplicates and count posts/subreddits
         adf = adf.drop_duplicates(subset=['selftext'])
         nps = adf.shape[0]
@@ -95,13 +95,14 @@ def preprocess(min_posts=5, min_subreddits=5):
             group_count += 1
             # Save if 1000 users
             if group_count % 1000 == 0:
-                outfile = PROCESSED_PATH / f'{1000*n_groups}.txt'
+                outfile = PROCESSED_PATH / f'{1000*n_groups}.txt.gz'
                 group_df['user_id'] = group_df['author']\
                     .map(range(1000*(n_groups-1), 1000*n_groups))
                 group_df.to_csv(outfile, sep='\t', compression='gzip',
                                 index=False)
                 n_groups += 1
                 group_count = 0
+        os.remove(f)
 
     # Print dataset features
     print(f'''\nThere are {len(n_posts)} users, 
@@ -130,6 +131,4 @@ def preprocess(min_posts=5, min_subreddits=5):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    preprocess(args.min_posts, args.min_subreddits)
-
-
+    filter(args.min_posts, args.min_subreddits)
