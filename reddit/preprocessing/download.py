@@ -10,9 +10,6 @@ import re
 import argparse
 import wget
 import fasttext
-#from selectolax.parser import HTMLParser
-#from markdown import markdown
-
 
 # Directory params for download
 DOWNLOAD_DIR = Path('..') / 'data' / 'tmp'
@@ -41,12 +38,6 @@ if not os.path.exists(FASTTEXT_FILE):
     wget.download(FASTTEXT_URL, out=str(FASTTEXT_FILE))
 langdetect = fasttext.load_model(str(FASTTEXT_FILE))
 
-# Remove markdown syntax
-#def _markdown_to_text(md):
-#    html = markdown(md)
-#    tree = HTMLParser(html)
-#    return tree.body.text()
-
 # Define language filtering function
 def _language_detection(s):
     try:
@@ -69,8 +60,6 @@ def filter_submission(ldict, posts, target_fields):
 def clean_df(df):
     df = df.drop_duplicates(subset=['author', 'selftext'])
     df = df.dropna()
-    df['selftext'].replace('[\s]+', ' ', regex=True, inplace=True)
-    #df['selftext'] = df['selftext'].apply(_markdown_to_text)
     df['lang'] = df['selftext'].apply(_language_detection)
     df = df[df['lang']=='en'].drop('lang', axis=1)
     return df

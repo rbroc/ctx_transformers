@@ -9,6 +9,9 @@ import gzip
 import random
 import seaborn as sns
 from matplotlib import pyplot as plt
+from selectolax.parser import HTMLParser
+from markdown import markdown
+from pandarallel import pandarallel
 
 # Define paths
 DATA_PATH = Path('..') / 'data'
@@ -27,8 +30,18 @@ parser.add_argument('--min-posts', type=int, default=5,
                     help='Minimum number of posts per user')
 parser.add_argument('--min-subreddits', type=int, default=5,
                     help='Minimum number of subreddits per user')
+parser.add_argument('--num-cores', type=int, default=3,
+                    help='Number of parallel cores used in apply call')
 
-def filter(min_posts=5, min_subreddits=5):
+
+# Util function to remove markdown syntax
+def markdown_to_text(md):
+    html = markdown(md)
+    tree = HTMLParser(html)
+    return tree.body.text()
+
+
+def filter(min_posts=5, min_subreddits=5, num_cores=3):
     ''' Runs preprocessing on the dataset (filtering duplicates,
         filtering by minimum number of posts per user, removing 
         non-English posts) 
@@ -37,6 +50,8 @@ def filter(min_posts=5, min_subreddits=5):
         min_subreddits (int): mininum number of subreddits to 
             which the user has to have contributed    
     '''
+    pandarallel.initialize(nb_workers=num_cores)
+
     fs = glob.glob(str(RAW_PATH/'*'))
     n_posts = []
     n_subreddits = []
@@ -80,6 +95,8 @@ def filter(min_posts=5, min_subreddits=5):
         nss =  adf.subreddit.nunique()
 
         if (nps >= min_posts) and (nss >= min_subreddits):
+            adf['selftext'] = adf['selftext'].parallel_apply(markdown_to_text)
+            adf['selftext'].replace('[\s]+', ' ', regex=True, inplace=True)
             # Log user metrics
             adf['n_user_posts'] = nps
             adf['n_user_subreddits'] = nss
@@ -131,4 +148,4 @@ def filter(min_posts=5, min_subreddits=5):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    filter(args.min_posts, args.min_subreddits)
+    filter(args.min_posts, args.min_subreddits, args.num_cores)
