@@ -22,8 +22,8 @@ FASTTEXT_FILE = DOWNLOAD_DIR / 'lid.176.bin'
 URL = 'https://files.pushshift.io/reddit/submissions/'
 
 # Pushshift files params
-years = [str(i) for i in [2018]]#, 2019]]
-months = ['0' + str(i) for i in range(1, 2)] #+ [str(i) for i in [10, 11, 12]]
+years = [str(i) for i in [2018, 2019]]
+months = ['0' + str(i) for i in range(1, 10)] + [str(i) for i in [10, 11, 12]]
 ym_comb = itertools.product(years, months)
 
 # Filtering params
@@ -59,7 +59,9 @@ def filter_submission(ldict, posts, target_fields):
 # Define dataframe-wide filtering function
 def clean_df(df):
     df = df.drop_duplicates(subset=['author', 'selftext'])
-    df = df.dropna()
+    df = df.dropna(subset=['author','selftext','subreddit'])
+    df['selftext'].replace('[\s]+', ' ', regex=True, inplace=True)
+    df['selftext'].replace('\"', '', regex=True, inplace=True)
     df['lang'] = df['selftext'].apply(_language_detection)
     df = df[df['lang']=='en'].drop('lang', axis=1)
     return df
@@ -145,7 +147,6 @@ def download_and_extract():
                         buffer = lines[-1]          
     
         os.remove(DOWNLOAD_DIR/(fprefix+cformat))
-
     os.remove(FASTTEXT_FILE)
     os.rmdir(DOWNLOAD_DIR)
 

@@ -1,3 +1,7 @@
+- What to do with string length (reduce to > 20? in remove_authors, or straight at download?)
+- Add markdown2 dependency
+- Remove subreddit column from authors list
+
 Longer term:
 - Change package name
 - Develop online visualization helper for training

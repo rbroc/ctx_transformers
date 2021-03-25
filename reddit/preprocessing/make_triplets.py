@@ -4,7 +4,8 @@ from pathlib import Path
 from transformers import AutoTokenizer
 import argparse
 import json
-from utils import read_files
+import glob
+
 
 DATA_PATH = Path('..') / 'data'
 PROCESSED_PATH = DATA_PATH  /'filtered'
@@ -13,43 +14,58 @@ TRIPLET_PATH.mkdir(parents=True, exist_ok=True)
 DATASET_PATH = DATA_PATH / 'datasets' / 'triplet'
 DATASET_PATH.mkdir(parents=True, exist_ok=True)
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=0,
                     help='Seed for random call')
+parser.add_argument('--n-examples', type=int, default=1,
+                    help='Number of negative/positive examples')
 
-def _pick_examples(user_df):
-    ''' Picks one example per user'''
-    idx = np.random.choice(user_df.index, 1)[0]
-    return idx, user_df.loc[idx,:]
 
-def _extract_and_drop_examples(df):
-    idx, ex_df = df.groupby('user_id', 
-                            as_index=False).apply(_pick_examples)
+def _pick_user_examples(udf, n):
+    ''' Picks examples to be used as neg/pos examples for one user
+    Args:
+        udf (pd.DataFrame): user-specific dataframe
+        n (int): number of examples
+    '''
+    idx = np.random.choice(udf.index, n)[0]
+    return idx, udf.loc[idx,:]
+
+
+def pick_and_drop_examples(df, n):
+    ''' Picks examples, pops them from main df, returns them separate df 
+    Args:
+        df (pd.DataFrame): global dataframe
+        n (int): number of examples per user 
+    '''
+    idx, ex_df = df.groupby('user_id', as_index=False)\
+        .apply(lambda x: _pick_user_examples(x, n))
     df = df.drop(idx, axis=0)
     return df, ex_df
 
-def _make_json(sub_df):
+
+def _make_user_dict(df, pos_df, neg_df):
+    ''' Returns dictionary with info on user '''
     adict = {}
-    for u in sub_df.user_id.unique():
-        u_df = sub_df[sub_df['target_user']==u]
-        anchor = u_df[u_df['example_type']=='anchor']
-        pos = u_df[u_df['example_type']=='positive']
-        neg = u_df[u_df['example_type']=='negative']
-        anchor_sr = anchor['subreddit'].unique().tolist()
-        unique_sr = u_df.subreddit.nunique()
+    for u in df.user_id.unique():
+        anchor = df[df['target_author']==u]
+        neg = neg_df[neg_df['target_author']==u]
+        pos = pos_df[pos_df['target_author']==u]
         adict[u] = {'anchor': anchor['selftext'].tolist(),
-                    'pos': pos['selftext'].iloc[0],
-                    'neg': neg['selftext'].iloc[0],
+                    'positive': pos['selftext'].tolist(),
+                    'negative': neg['selftext'].tolist(),
                     'n_anchor': anchor.shape[0],
-                    'neg_author': neg['author'].iloc[0],
-                    'anchor_subreddits': anchor_sr,
-                    'pos_subreddit': pos['subreddit'].iloc[0],
-                    'neg_subreddit': neg['subreddit'].iloc[0],
-                    'author_unique_subreddits': unique_sr}
+                    'n_positive': pos.shape[0],
+                    'n_negative': neg.shape[0],
+                    'anchor_subreddits': anchor['subreddit'].tolist(),
+                    'positive_subreddit': pos['subreddit'].tolist(),
+                    'negative_subreddit': neg['subreddit'].tolist(),
+                    'negative_authors': neg['author'].tolist()}
     return adict
 
 
-def make_triplet_examples(seed=0):
+# Main function
+def make_triplets(seed=0, n_examples=1):
     ''' For each user, selects which posts are used as anchor,
         positive example, and negative example. Stores this info 
         in dataframes (splits into several chunks for ease of 
@@ -57,44 +73,42 @@ def make_triplet_examples(seed=0):
     Args:
         seed (int): seed for np.random.seed call
     '''
-    df = read_files(PROCESSED_PATH, drop_duplicates=False)
+    # Read file
+    fs = glob.glob(str(PROCESSED_PATH/'*'))
     
-    # Make examples
-    np.random.seed()
-    print('Extracting per-user negative examples...')
-    neg_df, df = _extract_and_drop_examples(df)
-    print('Extracting per-user positive examples...')
-    pos_df, df = _extract_and_drop_examples(df)
-    df['example_type'] = 'anchor'
-    neg_df['example_type'] = 'negative'
-    pos_df['example_type'] = 'positive'
-    users = df.user_id.unique()
-    attempt = 0
-    while True:
-        attempt += 1
-        print(f'Combining users and examples, attempt {attempt}...')
-        np.random.shuffle(users)
-        if all(users != neg_df['user_id']):
-            break
-    neg_df['target_user_id'] = users
-    pos_df['target_user_id'] = pos_df['user_id']
-    df['target_user_id'] = df['user_id']
+    for f in fs:
+        print(f'Reading {f}...')
+        df = pd.read_csv(f, sep='\t', compression='gzip')
 
-    # Concatenate and save
-    df = pd.concat([df, pos_df, neg_df], ignore_index=False)
-    idxs = np.arange(0, users.shape[0], 1000)
-    idxs = idxs.append(users.shape[0])
-    for idx in idxs[:-1]:
-        outfile = TRIPLET_PATH / f'triplet_{idx+1}.txt'
-        json_outfile = TRIPLET_PATH / f'examples_{idx+1}.json'
-        sub_df = df[df['author'].isin(df.author.unique()[idx:idx+1])]
-        sub_df.to_csv(outfile, sep='\t', compression='gzip')
-        d = _make_json(sub_df)
-        with open(json_outfile) as fh:
+        # Get examples
+        np.random.seed()
+        neg_df, df = pick_and_drop_examples(df, n=n_examples)
+        pos_df, df = pick_and_drop_examples(df, n=n_examples)
+        df['example_type'] = 'anchor'
+        neg_df['example_type'] = 'negative'
+        pos_df['example_type'] = 'positive'
+        attempt = 0
+
+        # Match users and examples
+        while True: 
+            attempt += 1
+            print(f'\tMatch users and examples, attempt {attempt}...')
+            alist = df.author.unique.tolist()
+            np.random.shuffle(alist)
+            alist = [a for a in alist for _ in range(n_examples)]
+            if all(alist != neg_df['user_id']):
+                break
+        neg_df['target_author'] = alist
+        pos_df['target_author'] = pos_df['author']
+        df['target_author'] = df['author']
+
+        # Concatenate and save as json
+        ofile_id = f.split('/')[-1].split('.')[0]
+        ofile_json = TRIPLET_PATH / f'{ofile_id}.json'
+        d = _make_user_dict(df, pos_df, neg_df)
+        with open(ofile_json) as fh:
             fh.write(json.dumps(d))
-    del d, sub_df
-
 
 if __name__=="__main__":
     args = parser.parse_args()
-    make_triplet_examples(args.seed)
+    make_triplets(args.seed)

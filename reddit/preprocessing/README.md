@@ -2,9 +2,9 @@
 The scripts contained in this folder cover all the steps needed to create datasets of Reddit posts in the format required by the models.
 Dataset creation steps and the corresponding scripts are the following:
 - ```download.py```: downloads Reddit submissions from the Pushshift dump at https://files.pushshift.io/reddit/submissions/, removes empty posts, crossposts, posts flagged as over_17 or posts with missing essential info, and stores into tsv files with up to 100000 posts each
-- ```prefilter.py```: removes users with fewer than 5 posts and posting in fewer that 5 distinct subreddits from dataset
-- ```filter.py```: splits files into single-author files
-- ```make_triplets.py```: for each user, picks one post to be used as positive example, and one post used as negative example for other users in a triplet loss learning framework. Also pairs up negative examples with respective users, and stores info on each example (id, user, anchor / positive / negative examples, + metadata) in a json file for easy inspection
-- ```tokenize.py```: tokenizes all examples with a tokenizer of interest (defaults to ```distilbert-base-uncased```), and saves encoded posts
-- ```make_tf_dataset.py```: stacks anchor, positive and negative example for each users, and saves the resulting dataset as TFRecord.
-All outputs are saved in the ```data``` folder of the package.
+- ```prefilter.py```: removes users with too few posts (parameter can be defined)
+- ```split_authors.py```: splits files into single-user files
+- ```remove_authors.py```: reads all user files, removes duplicate posts, and deletes the user file if there are less than 5 posts left, if remaining posts belong to less than 5 distinct subreddits.
+- ```batch_authors.py```: groups the remaining files into larger files with 10000 users each. Also removes html tags from main text.
+- ```make_triplets.py```: for each user, picks anchor, positive and negative example and saves as json
+- ```make_dataset.py```: creates TF dataset from json files (includes tokenization step)

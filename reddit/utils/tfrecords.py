@@ -4,99 +4,122 @@ from tensorflow.train import Example, Features, Feature, BytesList
 from tensorflow.io import FixedLenFeature
 
 
-FEATURE_DESCRIPTION_TRIPLET = {
-    'input_ids': FixedLenFeature([], tf.string),
-    'attention_mask': FixedLenFeature([], tf.string),
-    'id': FixedLenFeature([], tf.string)
-    }
+# Define feature description
+FEATURE_NAMES = ['iids', 'amask', 'pos_iids', 'pos_amask',
+                 'neg_iids', 'neg_amask', 'author_id']
+FEATURE_TYPES = [FixedLenFeature([], tf.string)]*len(FEATURE_NAMES)
+FEATURE_DESCRIPTION = dict(zip(FEATURE_NAMES,
+                               FEATURE_TYPES))
 
 
-def _make_example_triplet(input_ids, attention_mask, id):
+def _make_example(iids, amask, pos_iids, pos_amask,
+                  neg_iids, neg_amask, author_id):
     ''' Serialize single example '''
-    input_ids_feature = Feature(
+    iids_feature = Feature(
         bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(input_ids).numpy(),
+            tf.io.serialize_tensor(iids).numpy(),
         ])
     )
-    attention_mask_feature = Feature(
+    amask_feature = Feature(
         bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(attention_mask).numpy(),
+            tf.io.serialize_tensor(amask).numpy(),
+        ])
+    )
+    pos_iids_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(pos_iids).numpy(),
+        ])
+    )
+    pos_amask_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(pos_amask).numpy(),
+        ])
+    )
+    neg_iids_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(neg_iids).numpy(),
+        ])
+    )
+    neg_amask_feature = Feature(
+        bytes_list=BytesList(value=[
+            tf.io.serialize_tensor(neg_amask).numpy(),
         ])
     )
     id_feature = Feature(
         bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(id).numpy(),
+            tf.io.serialize_tensor(author_id).numpy(),
         ])
     )
-    features = Features(feature={
-        'input_ids': input_ids_feature,
-        'attention_mask': attention_mask_feature,
-        'id': id_feature
-    }) 
+    features_values = [iids_feature, amask_feature,
+                       pos_iids_feature, pos_amask_feature,
+                       neg_iids_feature, neg_amask_feature,
+                       id_feature]
+    features = Features(feature=dict(zip(FEATURE_NAMES,
+                                         features_values)))
     example = Example(features=features)
     return example.SerializeToString()
 
     
-def _map_fn_triplet(x, y):
-    ''' Maps make_example to whole dataset'''
-    tf_string = tf.py_function(func=_make_example_triplet, 
-                               inp=[x[0], x[1], x[2]], 
+def _map_fn(x):
+    ''' Maps make_example to whole dataset '''
+    tf_string = tf.py_function(func=_make_example, 
+                               inp=x, 
                                Tout=tf.string)
     return tf_string
 
 
-def _shard_fn(key, dataset, compression, n_shards, path):
-    ''' Shard dataset at saving '''
-    str2 = tf.strings.join([tf.strings.as_string(key), 
+def _shard_fn(k, prefix, ds, compression, n_shards, path):
+    ''' Util function to shard dataset at save '''
+    str2 = tf.strings.join([prefix, 
+                            tf.strings.as_string(k), 
                             '-of-', str(n_shards-1), '.tfrecord'])
-    filename = tf.strings.join([path, str2])    
-    writer = tf.data.experimental.TFRecordWriter(filename, 
+    fname = tf.strings.join([str(path), str2])    
+    writer = tf.data.experimental.TFRecordWriter(fname, 
                                                  compression_type=compression)
-    writer.write(dataset.map(lambda _, x: x))
-    return tf.data.Dataset.from_tensors(filename)
+    writer.write(ds.map(lambda _, x: x))
+    return tf.data.Dataset.from_tensors(fname)
 
 
-def save_tfrecord_triplet(dataset, 
-                          filename=None, 
-                          n_shards=1, 
-                          path='data',
-                          compression='GZIP'):
+def save_tfrecord(dataset, prefix, path,
+                  n_shards=1,
+                  compression='GZIP'):
     ''' Saves tfrecord in shards
         Args:
             dataset (TFDataset): dataset to be saved
-            filename (str): prefix for filename of each dataset
+            prefix (str): prefix for tfrecord file
+            path (str or Path): output path for dataset
             n_shards (int): number of shards (defaults to 1)
             compression (str): type of compression to apply
     '''
-    dataset = dataset.map(_map_fn_triplet)
-    dataset = dataset.enumerate()
+    dataset = dataset.map(_map_fn).enumerate()
     dataset = dataset.apply(tf.data.experimental.group_by_window(
                             lambda i, _: i % n_shards, 
-                            lambda k, d: _shard_fn(k, d, compression, 
+                            lambda k, d: _shard_fn(k, prefix, d, 
+                                                   compression, 
                                                    n_shards, path), 
                             tf.int64.max )
                             )
     for s in dataset:
-        print(f'Saving {s} ...')
+        print(f'Saving {s} from {prefix} ...')
 
 
-def _parse_fn_triplet(example):
-    ''' Parse examples when loading '''
-    example = tf.io.parse_single_example(example, FEATURE_DESCRIPTION_TRIPLET)
-    iids = tf.io.parse_tensor(example['input_ids'], tf.int32)
-    amasks = tf.io.parse_tensor(example['attention_mask'], tf.int32)
-    ids = tf.io.parse_tensor(example['id'], tf.int32)
-    return dict(zip(['input_ids', 'attention_mask'], [iids, amasks, ids]))
+def _parse_fn(example):
+    ''' Parse examples at load '''
+    example = tf.io.parse_single_example(example, 
+                                         FEATURE_DESCRIPTION)
+    inps = [tf.io.parse_tensor(example[f], tf.int32) 
+            for f in FEATURE_NAMES]
+    return dict(zip(FEATURE_NAMES, inps))
 
 
-def load_tfrecord_triplet(filenames, 
-                          num_parallel_calls=1,
-                          deterministic=False,
-                          cycle_length=16,
-                          compression='GZIP'):
+def load_tfrecord(fnames, 
+                  num_parallel_calls=1,
+                  deterministic=False,
+                  cycle_length=16,
+                  compression='GZIP'):
     ''' Loads tfrecord from files 
         Args:
-            filenames (list): list of filenames for TFRecord
+            fnames (list): list of filenames for TFRecord
             num_parallel_calls (int): number of parallel reads
             deterministic (bool): does order matter (tradeoff with speed)
             cycle_length (int): number of input elements processed concurrently
@@ -104,14 +127,12 @@ def load_tfrecord_triplet(filenames,
     '''
     opts = tf.data.Options()
     opts.experimental_deterministic = deterministic
-    dataset = tf.data.Dataset.from_tensor_slices(filenames)
+    dataset = tf.data.Dataset.from_tensor_slices(fnames)
     dataset = dataset.with_options(opts)
     read_fn = lambda x: tf.data.TFRecordDataset(x, 
                                                 compression_type=compression)
     dataset = dataset.interleave(read_fn, 
                                  cycle_length=cycle_length, 
                                  num_parallel_calls=num_parallel_calls)
-    return dataset.map(_parse_fn_triplet, 
+    return dataset.map(_parse_fn, 
                        num_parallel_calls=num_parallel_calls)
-
-
