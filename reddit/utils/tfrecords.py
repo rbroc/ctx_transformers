@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.data import TFRecordDataset
 from tensorflow.train import Example, Features, Feature, BytesList
 from tensorflow.io import FixedLenFeature
+import os
 
 
 # Define feature description
@@ -60,7 +61,7 @@ def _make_example(iids, amask, pos_iids, pos_amask,
     return example.SerializeToString()
 
     
-def _map_fn(x):
+def _make_examples(*x):
     ''' Maps make_example to whole dataset '''
     tf_string = tf.py_function(func=_make_example, 
                                inp=x, 
@@ -68,9 +69,11 @@ def _map_fn(x):
     return tf_string
 
 
-def _shard_fn(k, prefix, ds, compression, n_shards, path):
+def _shard_fn(k, ds, prefix, path, compression, n_shards):
     ''' Util function to shard dataset at save '''
-    str2 = tf.strings.join([prefix, 
+    str2 = tf.strings.join([os.sep, 
+                            prefix, 
+                            '-',
                             tf.strings.as_string(k), 
                             '-of-', str(n_shards-1), '.tfrecord'])
     fname = tf.strings.join([str(path), str2])    
@@ -91,12 +94,13 @@ def save_tfrecord(dataset, prefix, path,
             n_shards (int): number of shards (defaults to 1)
             compression (str): type of compression to apply
     '''
-    dataset = dataset.map(_map_fn).enumerate()
+    dataset = dataset.map(_make_examples).enumerate()
     dataset = dataset.apply(tf.data.experimental.group_by_window(
                             lambda i, _: i % n_shards, 
-                            lambda k, d: _shard_fn(k, prefix, d, 
+                            lambda k, d: _shard_fn(k, d, prefix,
+                                                   path,
                                                    compression, 
-                                                   n_shards, path), 
+                                                   n_shards), 
                             tf.int64.max )
                             )
     for s in dataset:
@@ -117,7 +121,7 @@ def load_tfrecord(fnames,
                   deterministic=False,
                   cycle_length=16,
                   compression='GZIP'):
-    ''' Loads tfrecord from files 
+    ''' Loads dataset from tfrecord files
         Args:
             fnames (list): list of filenames for TFRecord
             num_parallel_calls (int): number of parallel reads
