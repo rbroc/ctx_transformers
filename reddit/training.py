@@ -79,6 +79,7 @@ class Trainer:
         self.opt_ckpt = OptimizerCheckpoint(self, log_path)
         self.distributed = distributed
 
+
     def _train_step(self, batch_in_replica):
         ''' Define training step (single replica) '''
         with tf.GradientTape() as tape:
@@ -89,11 +90,13 @@ class Trainer:
                                            self.model.trainable_variables))
         return loss_out
 
+
     def _test_step(self, batch_in_replica):
         ''' Define test step (single replica) '''
         model_out = self.model(batch_in_replica)
         test_loss_out = self.loss_object(*model_out)
         return test_loss_out
+
 
     @tf.function
     def _run_distributed_step(self, global_batch, train=True):
@@ -101,6 +104,7 @@ class Trainer:
         fn = self._train_step if train else self._test_step
         step_outs = self.strategy.run(fn, args=(global_batch,))
         return [getattr(o,'values') for o in step_outs]
+
 
     def _run_train_epoch(self, epoch, dataset_train):
         ''' Run one training epoch 
@@ -132,6 +136,7 @@ class Trainer:
         avg_metric = tf.reduce_mean(self.logger.logdict['metrics']).numpy()
         print(f'Mean loss: {avg_loss}; Mean metric: {avg_metric}')
 
+
     def _run_test_epoch(self, epoch, dataset_test):
         ''' Run one validation/test epoch 
         Args:
@@ -151,6 +156,7 @@ class Trainer:
         avg_loss = tf.reduce_mean(self.logger.logdict['test_losses']).numpy()
         avg_metric = tf.reduce_mean(self.logger.logdict['test_metrics']).numpy()
         print(f'Mean test loss: {avg_loss}; Mean test metric: {avg_metric}')
+
 
     def train(self, dataset_train, dataset_test=None, shuffle=True):
         ''' Run full training 

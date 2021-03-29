@@ -105,9 +105,8 @@ def make_triplets(f, seed=0, n_examples=1, batch_size=10000):
 if __name__=="__main__":
     fs = glob.glob(str(PROCESSED_PATH/'*'))
     args = parser.parse_args()
-    pool = Pool(processes=args.num_cores)
-    for f in fs:
-        pool.apply(make_triplets, args=(f,
-                                        args.seed, 
-                                        args.n_examples,
-                                        args.batch_size))
+    pool = Pool(processes=args.n_cores)
+    pool.starmap(make_triplets, zip(fs, 
+                                    [args.seed]*len(fs),
+                                    [args.n_examples]*len(fs),
+                                    [args.batch_size]*len(fs)))
