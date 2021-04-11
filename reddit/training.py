@@ -17,6 +17,12 @@ class Trainer:
             set to None in non-distributed contexts
         n_epochs (int): number of training epochs
         steps_per_epoch (int): number of training steps/batches
+        n_neg (int): number of negative examples passed
+            (after padding)
+        n_pos (int): number of positive examples passed
+            (after padding)
+        n_anchor (int): number of anchor examples passed
+            (after padding)
         distributed (bool): whether training in distributed 
             strategy
         checkpoint_every (int): how often (in examples) model 
@@ -67,6 +73,7 @@ class Trainer:
         self.strategy = strategy
         self.n_epochs = n_epochs
         self.steps_per_epoch = steps_per_epoch
+        self.distributed = distributed
         self.checkpoint_every = checkpoint_every or steps_per_epoch
         self.log_every = log_every
         self.start_epoch = start_epoch
@@ -77,14 +84,13 @@ class Trainer:
         self.logger = Logger(self, log_path)
         self.model_ckpt = ModelCheckpoint(self, checkpoint_device, log_path)
         self.opt_ckpt = OptimizerCheckpoint(self, log_path)
-        self.distributed = distributed
 
 
     def _train_step(self, batch_in_replica):
         ''' Define training step (single replica) '''
         with tf.GradientTape() as tape:
             model_out = self.model(batch_in_replica)
-            loss_out = self.loss_object(*model_out)
+            loss_out = self.loss_object(model_out)
         gradients = tape.gradient(loss_out[0], self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients,
                                            self.model.trainable_variables))
@@ -94,7 +100,7 @@ class Trainer:
     def _test_step(self, batch_in_replica):
         ''' Define test step (single replica) '''
         model_out = self.model(batch_in_replica)
-        test_loss_out = self.loss_object(*model_out)
+        test_loss_out = self.loss_object(model_out)
         return test_loss_out
 
 

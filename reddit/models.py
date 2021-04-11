@@ -3,7 +3,7 @@ from tensorflow import keras
 from tensorflow.keras.layers import (Dense, 
                                      Concatenate, 
                                      Lambda)
-from reddit.utils import average_anchor
+from reddit.utils import average_encodings
 
 
 class BatchTransformer(keras.Model):
@@ -31,14 +31,14 @@ class BatchTransformer(keras.Model):
                              axis=-1, keepdims=True)
         mask = tf.cast(mask, tf.float32)
         mask = tf.abs(tf.subtract(mask, 1.))
-        encoding = self.encoder(example['input_ids']).last_hidden_state[:,0,:]
+        encoding = self.encoder(input_ids=example['input_ids'],
+                                attention_mask=example['attention_mask']).last_hidden_state[:,0,:]
         masked_encoding = tf.multiply(encoding, mask)
-        n_post = tf.reduce_sum(mask)
-        return masked_encoding, n_post
+        return masked_encoding
 
     def call(self, input):
-        encodings, n_posts = tf.vectorized_map(self._encode_batch, elems=input)
-        return encodings, n_posts
+        encodings = tf.vectorized_map(self._encode_batch, elems=input)
+        return encodings
 
 
 class BatchTransformerFFN(BatchTransformer):
@@ -90,13 +90,14 @@ class BatchTransformerFFN(BatchTransformer):
                          trainable)
         self.dense_layers = keras.Sequential([Dense(dims[i], activations[i], **kwargs)
                                               for i in range(n_dense)])
-        self.average_anchor_layer = Lambda(lambda x: average_anchor(*x))
+        self.average_layer = Lambda(average_encodings)
         self.concat_layer = Concatenate(axis=1)
 
-
     def call(self, input):
-        encodings, n_posts = super().call(input)
-        avg_anchor = self.average_anchor_layer([encodings, n_posts])
-        encodings = self.concat_layer([encodings[:,:2,:], avg_anchor])
+        encodings = super().call(input)
+        avg_anchor = self.average_layer(encodings)
+        avg_pos = self.average_layer(encodings)
+        avg_neg = self.average_layer(encodings)
+        encodings = self.concat_layer([avg_neg, avg_pos, avg_anchor])
         encodings = self.dense_layers(encodings)
-        return encodings, n_posts
+        return encodings
