@@ -1,0 +1,25 @@
+Next up:
+- Also push filtered
+
+ENH
+- Log padding parameters somewhere?
+
+Longer term:
+- Change package name
+- Viz helpers for training
+- Rerun baseline models
+    - Non fine-tuned BERT
+    - Simple classifier
+    - FFN with increasing complexity
+- Add show examples & W&B as it proceeds?
+
+Other:
+- Rerun fine-tuning
+    - Margin
+    - Grad accumulation
+    - Loss function
+    - Model type
+- Any manipulation needed for the optimizer?
+- Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
+- Add maximize distance between negative and anchor to loss?
+- Should we consider limiting string length
