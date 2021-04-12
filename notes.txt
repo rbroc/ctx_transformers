@@ -1,15 +1,11 @@
 Next up:
-- Make author index
-- Remove subreddit column from authors list
-- Add util function to go from current dataset to required format
-- What to do with string length (reduce to > 20? in remove_authors, or straight at download?)
+- Check dataset batching
+- Drop remainder?
 - Re-try testing (with toy tfrec)
 
 Longer term:
 - Change package name
-- Viz helper for training
-- Add gradient accumulation option?
-- Add maximize distance between negative and anchor to loss?
+- Viz helpers for training
 - Rerun baseline models
     - Non fine-tuned BERT
     - Simple classifier
@@ -23,3 +19,5 @@ Other:
     - Model type
 - Any manipulation needed for the optimizer?
 - Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
+- Add maximize distance between negative and anchor to loss?
+- Should we consider limiting string length
