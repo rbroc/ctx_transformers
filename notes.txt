@@ -1,6 +1,5 @@
 Next up:
-- Make sample training notebook on tpu
-- Merge
+- Also push filtered
 
 ENH
 - Log padding parameters somewhere?
