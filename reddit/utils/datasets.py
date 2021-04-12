@@ -49,14 +49,16 @@ def pad_and_stack(dataset, pad_to=[20,1,1]):
 
 def split_dataset(dataset, size=None,
                   perc_train=.7, perc_val=.1, 
-                  tuning=None):
+                  perc_test=.1, tuning=None):
     ''' Split dataset into training, validation and test set 
     Args:
         dataset (TFDataset): dataset to split (preprocessed and batched)
-        size (int): number of examples. If not provided, 
-            it is computed on the fly.
+        size (int): number of examples from dataset. If None,
+            the total number of examples is calculated and all examples 
+            are used.
         perc_train (float): percentage of examples in training set
         perc_val (float): percentage of examples in training set
+        perc_test (float): percentage of examples in test set
         tuning (optional): if provided, defines number of example for 
             additional tuning dataset.
     Returns:
@@ -66,11 +68,13 @@ def split_dataset(dataset, size=None,
         size = 0
         for _ in dataset:
             size += 1
+        print(f'Number of total examples: {size}')
     size_train = int(size * perc_train)
     size_val = int(size * perc_val)
+    size_test = int(size * perc_test)
     d_train = dataset.take(size_train)
-    d_test = dataset.skip(size_train + size_val)
     d_val = dataset.skip(size_train).take(size_val)
+    d_test = dataset.skip(size_train + size_val).take(size_test)
     if tuning is None:
         return d_train, d_val, d_test
     else:
