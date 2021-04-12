@@ -1,7 +1,9 @@
 Next up:
-- Check dataset batching
-- Drop remainder?
-- Re-try testing (with toy tfrec)
+- Make sample training notebook on tpu
+- Merge
+
+ENH
+- Log padding parameters somewhere?
 
 Longer term:
 - Change package name
@@ -10,6 +12,7 @@ Longer term:
     - Non fine-tuned BERT
     - Simple classifier
     - FFN with increasing complexity
+- Add show examples & W&B as it proceeds?
 
 Other:
 - Rerun fine-tuning

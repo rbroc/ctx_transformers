@@ -5,14 +5,18 @@ from reddit.models import BatchTransformer
 from transformers import TFDistilBertModel
 from official.nlp.optimization import create_optimizer
 import pytest
+from utils import build_distilbert_multiple_input
+from reddit.utils import load_tfrecord, pad_and_stack
+import shutil
+import glob
 from pathlib import Path
 import json
-from utils import build_distilbert_multiple_input
-import shutil
+
 
 WEIGHTS = 'distilbert-base-uncased'
 TRAIN_VARS = ['losses','metrics', 'dist_pos', 'dist_neg', 'dist_anchor']
 TEST_VARS = ['test_' + v for v in TRAIN_VARS]
+
 
 def test_trainer_logging():
     loss = TripletLossBase(1)
@@ -73,6 +77,7 @@ def test_trainer_logging():
     assert all([len(v)==6 for k,v in d.items() if k in TEST_VARS + ['test_example_ids']])
     shutil.rmtree('tmp')
 
+
 def test_trainer_checkpoints():
     loss = TripletLossBase(1)
     optimizer = create_optimizer(2e-5, num_train_steps=100, num_warmup_steps=10)
@@ -127,7 +132,7 @@ def test_trainer_train():
     examples, _ = build_distilbert_multiple_input(weights=WEIGHTS, 
                                                   n_examples=n_train_examples)
     test_examples, _ = build_distilbert_multiple_input(weights=WEIGHTS,
-                                                       type='test',
+                                                       kind='test',
                                                        n_padded=0, 
                                                        n_examples=n_test_examples)
     ds = tf.data.Dataset.from_tensor_slices(examples)
@@ -150,3 +155,4 @@ def test_trainer_train():
     assert len(d['example_ids']) == n_train_examples * 2
     assert len(d['test_example_ids']) == n_test_examples * 2
     shutil.rmtree('tmp')
+

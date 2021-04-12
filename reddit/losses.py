@@ -39,11 +39,10 @@ class TripletLossBase(TripletLoss):
             positive and negative encoding from avg of anchor encodings
     '''
     def __init__(self, margin, n_neg=1, n_pos=1, 
-                 n_anchor=1, custom_loss_fn=None, name=None):
+                 custom_loss_fn=None, name=None):
         super().__init__(margin, custom_loss_fn, name)
         self.n_neg = n_neg
         self.n_pos = n_pos
-        self.n_anchor = n_anchor
     
     def __call__(self, encodings):
         ''' Computes loss. Returns loss, metric and encodings distances 

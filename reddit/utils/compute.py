@@ -8,10 +8,11 @@ def average_encodings(encodings):
             (shape n_posts x n_dims)
     '''
     out = tf.reduce_sum(encodings, axis=1, keepdims=1)
-    mask = tf.reduce_all(tf.equal(encodings, 0), axis=-1, keepdims=True)
+    mask = tf.reduce_all(tf.equal(encodings, 0), axis=-1, 
+                         keepdims=True)
     mask = tf.cast(mask, tf.float32)
-    mask = tf.abs(tf.subtract(mask, 1.))
-    n_nonzero = tf.reduce_sum(mask)
+    mask = tf.abs(tf.subtract(mask, 1))
+    n_nonzero = tf.reduce_sum(mask, axis=1, keepdims=True)
     out = tf.divide(out, n_nonzero)
     return out
 
