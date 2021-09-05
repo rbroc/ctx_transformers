@@ -6,5 +6,14 @@ Dataset creation steps and the corresponding scripts are the following:
 - ```split_authors.py```: splits files into single-user files
 - ```remove_authors.py```: reads all user files, removes duplicate posts, and deletes the user file if there are less than 5 posts left, if remaining posts belong to less than 5 distinct subreddits.
 - ```batch_authors.py```: groups the remaining files into larger files with 10000 users each. Also removes html tags from main text.
+- ```make_db.py```: also stores the data as a SQLite3 database.
+
+Subfolders contain workflows for specific types of datasets, e.g. ```triplet``` (based on json-stored data):
 - ```make_triplets.py```: for each user, picks anchor, positive and negative example and saves as json
-- ```make_dataset.py```: creates TF dataset from json files (includes tokenization step)
+- ```make_triplet_dataset.py```: creates TF dataset from json files (includes tokenization step)
+- ```make_triplet_author_index.py```: makes an index of which author is in which batch
+
+and ```mlm```:
+- ```get_mlm_train_test.py```: queries the database to get post ids for train and test set;
+- ```make_mlm_examples.py```: creates json dictionary with examples including target + context. Can do both for train and test.
+- ```make_mlm_dataset.py```: creates TF dataset from json files (includes tokenization step)

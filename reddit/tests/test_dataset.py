@@ -31,13 +31,13 @@ def test_dataset_train():
                       distributed=False)
     model_path = Path(f'BatchTransformer-{WEIGHTS}') / 'triplet_loss_margin-1'
     # Process dataset
-    ds = load_tfrecord(ds_files)
+    ds = load_tfrecord(ds_files, ds_type='triplet')
     ds_train = ds.take(6)
     ds_test = ds.skip(6).take(2)
     ds_train = pad_and_stack(ds_train, pad_to=[5,1,1]).batch(2)
     ds_test = pad_and_stack(ds_test, pad_to=[5,1,1]).batch(2)
     # Try training
-    trainer.train(dataset_train=ds_train, dataset_test=ds_test)
+    trainer.run(dataset_train=ds_train, dataset_test=ds_test)
     metrics_path = Path('tmp') / 'metrics' / \
                       model_path / 'epoch-0' / 'log.json'
     with open(str(metrics_path)) as fh:

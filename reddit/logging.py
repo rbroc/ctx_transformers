@@ -24,27 +24,33 @@ class Logger:
         ''' Initialize/empties metrics dictionary '''
         for v in self.trainer.train_vars + self.trainer.test_vars:
             self.logdict[v] = []
+        for m in self.trainer.meta_vars:
+            self.logdict[m] = []
         self.logdict['example_ids'] = []
         self.logdict['test_example_ids'] = []
     
-    def log(self, vars, epoch, example_ids, batch=None,
-            train=True):
+    def log(self, logvars, epoch, example_ids, batch=None,
+            train=True, meta=None):
         ''' Logs metrics dictionary 
         Args:
-            vars (list): metrics to log (list of lists of tensors)
+            logvars (list): metrics to log (list of lists of tensors)
             epoch (int): number of epoch
             batch (int): batch number (1 to n steps)
             example_id (int): example id
             train (bool): defines whether logging as 
                 part of training. If so, saves file at
                 specified intervals
+            meta (list): meta variables to log.
          '''
-        for idx, d in enumerate(vars):
+        for idx, d in enumerate(logvars):
             fv = [float(v.numpy()) for v in d]
             if train:
                 self.logdict[self.trainer.train_vars[idx]] += fv
             else:
                 self.logdict[self.trainer.test_vars[idx]] += fv
+        for idx, m in enumerate(meta):
+            metaval = [i.numpy().tolist() for i in m]
+            self.logdict[self.trainer.meta_vars[idx]] += metaval
         ids = [int(i.numpy()) for i in example_ids]
         if train:
             self.logdict['example_ids'] += ids
@@ -100,14 +106,15 @@ class ModelCheckpoint(Checkpoint):
     def __init__(self, trainer, device, path='..'):
         super().__init__(trainer, 'checkpoint', path)
         self.options = tf.train.CheckpointOptions(device)
-        if self.trainer.load_epoch:
+        self.moptions = tf.saved_model.SaveOptions(experimental_io_device=device) # added
+        if self.trainer.load_epoch is not None:
             self._load()
 
     def _load(self):
         ''' Loads model checkpoint '''
         epoch_pattern = f'epoch-{self.trainer.load_epoch}'
         ckpt_file = tf.train.latest_checkpoint(str(self.model_path/epoch_pattern))
-        print(f'Loading {ckpt_file}')
+        print(f'**** Loading {ckpt_file} ****')
         self.trainer.model.load_weights(ckpt_file, options=self.options)
 
     def save(self, epoch, batch):
@@ -121,6 +128,7 @@ class ModelCheckpoint(Checkpoint):
         file_pattern = f'batch-{batch}-of-{self.trainer.steps_per_epoch}'
         out_pattern = epoch_dir / file_pattern
         self.trainer.model.save_weights(filepath=out_pattern, options=self.options)
+        self.trainer.model.save(filepath=out_pattern, options=self.moptions) # ADDED
 
 
 class OptimizerCheckpoint(Checkpoint):    

@@ -5,68 +5,55 @@ from tensorflow.io import FixedLenFeature
 import os
 
 
-# Define feature description
-FEATURE_NAMES = ['iids', 'amask', 'pos_iids', 'pos_amask',
-                 'neg_iids', 'neg_amask', 'author_id']
-FEATURE_TYPES = [FixedLenFeature([], tf.string)]*len(FEATURE_NAMES)
-FEATURE_DESCRIPTION = dict(zip(FEATURE_NAMES,
-                               FEATURE_TYPES))
+FEATURE_NAMES = {'triplet': ['iids', 'amask', 
+                             'pos_iids', 'pos_amask',
+                             'neg_iids', 'neg_amask', 
+                             'author_id'],
+                'mlm': ['target_iids', 'target_amask', 
+                        'context_iids', 'context_amask',
+                        'example_id', 
+                        'mask_token_id'],
+                'mlm_simple': ['target_iids', 'target_amask',
+                               'example_id', 
+                               'mask_token_id'],
+                'agg': ['iids', 'amask', 
+                        'avg_score', 'avg_comm', 'avg_posts', 
+                        'author_id']}
+
+FEATURE_OUT_TYPES = {'triplet': tuple([tf.int32]*7),
+                     'mlm': tuple([tf.int32]*6),
+                     'mlm_simple': tuple([tf.int32]*4),
+                     'agg': (tf.int32, tf.int32, 
+                             tf.float32, tf.float32, tf.float32,
+                             tf.int32)}
 
 
-def _make_example(iids, amask, pos_iids, pos_amask,
-                  neg_iids, neg_amask, author_id):
-    ''' Serialize single example '''
-    iids_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(iids).numpy(),
-        ])
-    )
-    amask_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(amask).numpy(),
-        ])
-    )
-    pos_iids_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(pos_iids).numpy(),
-        ])
-    )
-    pos_amask_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(pos_amask).numpy(),
-        ])
-    )
-    neg_iids_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(neg_iids).numpy(),
-        ])
-    )
-    neg_amask_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(neg_amask).numpy(),
-        ])
-    )
-    id_feature = Feature(
-        bytes_list=BytesList(value=[
-            tf.io.serialize_tensor(author_id).numpy(),
-        ])
-    )
-    features_values = [iids_feature, amask_feature,
-                       pos_iids_feature, pos_amask_feature,
-                       neg_iids_feature, neg_amask_feature,
-                       id_feature]
-    features = Features(feature=dict(zip(FEATURE_NAMES,
-                                         features_values)))
-    example = Example(features=features)
-    return example.SerializeToString()
 
-    
-def _make_examples(*x):
+def _get_feature_description(feature_names):  
+    types = [FixedLenFeature([], tf.string)]*len(feature_names)
+    return dict(zip(feature_names, types))
+
+
+def _set_make_example_opts(ds_type):
+    def _make_example(*inp):
+        feature_values = [Feature(
+                            bytes_list=BytesList(value=[
+                                tf.io.serialize_tensor(x).numpy(),
+                                ])) 
+                          for x in inp]
+        features = Features(feature=dict(zip(FEATURE_NAMES[ds_type],
+                                             feature_values)))
+        example = Example(features=features)
+        return example.SerializeToString()
+    return _make_example
+
+
+def _make_examples(*inps, ds_type):
     ''' Maps make_example to whole dataset '''
-    tf_string = tf.py_function(func=_make_example, 
-                               inp=x, 
+    to_string = tf.py_function(_set_make_example_opts(ds_type),
+                               inp=inps, 
                                Tout=tf.string)
-    return tf_string
+    return to_string
 
 
 def _shard_fn(k, ds, prefix, path, compression, n_shards):
@@ -84,7 +71,8 @@ def _shard_fn(k, ds, prefix, path, compression, n_shards):
 
 
 def save_tfrecord(dataset, prefix, path,
-                  n_shards=1,
+                  n_shards=1, 
+                  ds_type='triplet',
                   compression='GZIP'):
     ''' Saves tfrecord in shards
         Args:
@@ -92,9 +80,13 @@ def save_tfrecord(dataset, prefix, path,
             prefix (str): prefix for tfrecord file
             path (str or Path): output path for dataset
             n_shards (int): number of shards (defaults to 1)
+            ds_type (str): type of dataset (of those supported in 
+                feature names schema)
             compression (str): type of compression to apply
     '''
-    dataset = dataset.map(_make_examples).enumerate()
+    
+    dataset = dataset.map(lambda *x: _make_examples(*x, 
+                                                    ds_type=ds_type)).enumerate()
     dataset = dataset.apply(tf.data.experimental.group_by_window(
                             lambda i, _: i % n_shards, 
                             lambda k, d: _shard_fn(k, d, prefix,
@@ -107,20 +99,23 @@ def save_tfrecord(dataset, prefix, path,
         print(f'Saving {s} from {prefix} ...')
 
 
-def _parse_fn(example):
+def _parse_fn(example, ds_type='triplet'):
     ''' Parse examples at load '''
+    feature_names = FEATURE_NAMES[ds_type]
+    feature_types = FEATURE_OUT_TYPES[ds_type]
     example = tf.io.parse_single_example(example, 
-                                         FEATURE_DESCRIPTION)
-    inps = [tf.io.parse_tensor(example[f], tf.int32) 
-            for f in FEATURE_NAMES]
-    return dict(zip(FEATURE_NAMES, inps))
+                                         _get_feature_description(feature_names))
+    inps = [tf.io.parse_tensor(example[f], feature_types[idx]) 
+            for idx, f in enumerate(feature_names)]
+    return dict(zip(feature_names, inps))
 
 
 def load_tfrecord(fnames, 
                   num_parallel_calls=1,
                   deterministic=False,
                   cycle_length=16,
-                  compression='GZIP'):
+                  compression='GZIP',
+                  ds_type='triplet'):
     ''' Loads dataset from tfrecord files
         Args:
             fnames (list): list of filenames for TFRecord
@@ -138,5 +133,5 @@ def load_tfrecord(fnames,
     dataset = dataset.interleave(read_fn, 
                                  cycle_length=cycle_length, 
                                  num_parallel_calls=num_parallel_calls)
-    return dataset.map(_parse_fn, 
+    return dataset.map(lambda x: _parse_fn(x, ds_type),
                        num_parallel_calls=num_parallel_calls)

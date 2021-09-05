@@ -137,7 +137,7 @@ def test_trainer_train():
                                                        n_examples=n_test_examples)
     ds = tf.data.Dataset.from_tensor_slices(examples)
     ds_test = tf.data.Dataset.from_tensor_slices(test_examples)
-    trainer.train(dataset_train=ds, dataset_test=ds_test)
+    trainer.run(dataset_train=ds, dataset_test=ds_test)
     model_ckpt_path = Path('tmp') / 'checkpoint' / \
                       model_path / 'epoch-0' / 'batch-3-of-3.index'
     model_ckpt_path.exists()

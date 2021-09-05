@@ -5,9 +5,9 @@ def average_encodings(encodings):
     ''' Averages encodings along feature dimension
     Args:
         encodings (tf.Tensor): tensor of anchor encodings
-            (shape n_posts x n_dims)
+            (of shape n_posts x n_dims)
     '''
-    out = tf.reduce_sum(encodings, axis=1, keepdims=1)
+    out = tf.reduce_sum(encodings, axis=1, keepdims=True)
     mask = tf.reduce_all(tf.equal(encodings, 0), axis=-1, 
                          keepdims=True)
     mask = tf.cast(mask, tf.float32)

@@ -1,25 +1,28 @@
 Next up:
-- Also push/back up filtered
+08/06
+- Add reset to name
+- Look at weights
+- Run large dataset training
+- Clean up the code
+
+Further:
+- Run with larger dataset for more epochs
+- Classifier for triplet loss
+- Evaluation on aggregates
+- Probably make json subfolder for triplet too
 
 ENH
 - Log padding parameters somewhere?
-
-Longer term:
 - Change package name
 - Viz helpers for training
-- Rerun baseline models
-    - Non fine-tuned BERT
-    - Simple classifier
-    - FFN with increasing complexity
-- Add show examples & W&B as it proceeds?
+- Rerun FFN model
 
-Other:
+Other triplet:
 - Rerun fine-tuning
-    - Margin
-    - Grad accumulation
     - Loss function
     - Model type
 - Any manipulation needed for the optimizer?
 - Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
 - Add maximize distance between negative and anchor to loss?
 - Should we consider limiting string length
+
