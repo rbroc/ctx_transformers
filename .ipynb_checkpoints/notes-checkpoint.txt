@@ -1,0 +1,23 @@
+Next up:
+- Try other MLM protocols
+    - Skip connections
+    - Add one layer
+    - Other
+    - Previous + concatenate?
+- Classifier for triplet loss
+- Evaluation on aggregates
+- Probably make json subfolder for triplet too
+
+ENH
+- Change package name
+- Viz helpers for training
+- Rerun FFN model
+
+Triplet note:
+- Rerun fine-tuning
+    - Loss function
+    - Model type
+- Any manipulation needed for the optimizer?
+- Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
+- Add maximize distance between negative and anchor to loss?
+
