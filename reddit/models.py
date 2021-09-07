@@ -245,12 +245,6 @@ class BatchTransformerForContextMLM(keras.Model):
         context_pooling (str): if 'cls', averages cls tokens to get context
             representations. If 'mean' or 'max' pools token-level 
             representations by averaging or taking the max.
-        aggregate (str): if aggregate is 'dense', if no additional dense layers 
-            are specified after concatenation it adds a converter layer.
-            If 'multiply', multiplies each dimension of the context by each
-                dimension of the token representation. 
-                If 'attention', applies attention head to aggregated 
-                context and token representation.
     '''
     def __init__(self, 
                  transformer, 
@@ -266,7 +260,6 @@ class BatchTransformerForContextMLM(keras.Model):
                  dims=768,
                  n_tokens=512,
                  context_pooling='cls',
-                 aggregate='concatenate',
                  batch_size=1):
         
         # Name parameters
@@ -310,7 +303,7 @@ class BatchTransformerForContextMLM(keras.Model):
         if name is None:
             mtype = 'BatchTransformerForContextMLM'
             dense_args = f'{add_dense}-{dims_str}'
-            ctx_args = f'{context_pooling}-{aggregate}'
+            ctx_args = f'{context_pooling}-noagg'
             name = f'{mtype}-{freeze_str}-{load_str}-{dense_args}-{ctx_args}-{reset_str}-{fhead_str}'
         super(BatchTransformerForContextMLM, self).__init__(name=name)
         
@@ -319,21 +312,13 @@ class BatchTransformerForContextMLM(keras.Model):
         if context_pooling not in ['cls', 'mean', 'max']:
             raise ValueError('context_pooling must be cls, mean or max')
         self.context_pooling = context_pooling
-        self.aggregate = aggregate
         
+    
         # Create encoder
-        config = DistilBertConfig(vocab_size=30522, n_layers=3)
+        config = DistilBertConfig(vocab_size=30522, n_layers=6) # May need to be removed
         mlm_model = transformer(config)
         #mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
-        
-        # Create aggregator
-        if self.aggregate == 'concatenate': 
-            self.agg_layer = Concatenate(axis=-1)
-        elif self.aggregate == 'attention':
-            self.agg_layer = MultiHeadAttention(num_heads=6, 
-                                                key_dim=768)
-            self.att_norm = LayerNormalization()
         
         # Create dense
         if add_dense is not None and add_dense > 0:
@@ -376,40 +361,39 @@ class BatchTransformerForContextMLM(keras.Model):
         self.batch_size = batch_size
 
     def _encode_batch(self, example):
-        output = self.encoder(input_ids=example['input_ids'],
-                              attention_mask=example['attention_mask'])
-        return output.last_hidden_state
-    
-    def _pool_contexts(self, hidden_states):
-        if self.context_pooling == 'cls':
-            contexts = hidden_states[:,1:,0,:]
-        elif self.context_pooling == 'mean':
-            contexts = tf.reduce_mean(hidden_states[:,1:,1:,:], axis=-2)
-        elif self.context_pooling == 'max':
-            contexts = tf.reduce_max(hidden_states[:,1:,1:,:], axis=-2)
-        return contexts
+        embs = self.encoder._layers[0](example['input_ids'])
 
-    def _aggregate(self, target, contexts):
-        if self.aggregate != 'attention':
-            context = tf.reduce_mean(contexts, axis=1, keepdims=True)
-            context_broadcasted = tf.repeat(context, self.n_tokens, axis=1)
-            out = target + context_broadcasted
-            #out = self.agg_layer([target, context_broadcasted])
-        else:
-            out = self.agg_layer(target, contexts)
-            out = target + out
-            out = self.att_norm(out)
-        return out
+        for i, layer_module in enumerate(self.encoder._layers[1].layer):
+            layer_outputs = layer_module(embs, 
+                                         example['attention_mask'], # attention_mask - CHECK
+                                         None,  # head_mask
+                                         False, # output_attentions
+                                         training=False)  # check this.
+            ### Check if trainable?
+            hidden_state = layer_outputs[-1]
+            context = self._pool_contexts(hidden_states)
+            hidden_state = hidden_state + context # Could also integrate with concatenation
+
+        return hidden_state
+    
+    def _pool_contexts(self, hidden_state): # experiment with this
+        if self.context_pooling == 'cls':
+            contexts = tf.reduce_mean(hidden_state[1:,0,:], axis=0) # take 
+        elif self.context_pooling == 'mean':
+            contexts = tf.reduce_mean(tf.reduce_mean(hidden_state[1:,1:,:], axis=-2), axis=0)
+        elif self.context_pooling == 'max':
+            contexts = tf.reduce_mean(tf.reduce_max(hidden_state[1:,1:,:], axis=-2), axis=0) # is this correct? # or max max?
+        contexts = tf.expand_dims(contexts, axis=0)
+        contexts = tf.repeat(contexts, self.n_tokens, axis=0)
+        contexts = tf.expand_dims(contexts, axis=0)
+        contexts = tf.pad(contexts, [[0,10],[0,0],[0,0]]) # this is specific to this context size, right now
+        return contexts
     
     def call(self, input):
         hidden_states = tf.vectorized_map(self._encode_batch, elems=input)
-        target = hidden_states[:,0,:,:]
-        contexts = self._pool_contexts(hidden_states)
-        out = self._aggregate(target, contexts)
-        
-        if self.dense_layers is not None: # could probably remove
+        out = hidden_states[:,0,:,:]
+        if self.dense_layers is not None:
             out = self.dense_layers(out)
-        
         out = self.vocab_dense(out)
         out = self.act(out)
         out = self.vocab_layernorm(out)
