@@ -47,8 +47,6 @@ parser.add_argument('--n-tokens', type=int, default=512,
                     help='Number of tokens in encoding')
 parser.add_argument('--context-pooling', type=str, default='cls',
                     help='How to pool context')
-parser.add_argument('--aggregate', type=str, default='concatenate',
-                    help='How to aggregate context and target')
 
 
 # Define boolean args
@@ -80,8 +78,7 @@ def _run_training(log_path,
                   dims,
                   n_tokens,
                   test_only,
-                  context_pooling,
-                  aggregate):
+                  context_pooling):
     
     # Define type of training
     if context_type == 'single':
@@ -157,7 +154,6 @@ def _run_training(log_path,
                                 dims=dims,
                                 n_tokens=n_tokens,
                                 context_pooling=context_pooling,
-                                aggregate=aggregate,
                                 batch_size=per_replica_batch_size)
         loss = MLMLoss()
         
@@ -211,5 +207,4 @@ if __name__=='__main__':
                   dims=args.dims,
                   n_tokens=args.n_tokens,
                   test_only=args.test_only,
-                  context_pooling=args.context_pooling,
-                  aggregate=args.aggregate)
+                  context_pooling=args.context_pooling)
