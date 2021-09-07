@@ -3,3 +3,5 @@
 *.egg-info
 .pytest_cache/
 *.pyc
+reddit/data/**
+logs/**
