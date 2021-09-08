@@ -174,9 +174,9 @@ class BatchTransformerForMLM(keras.Model):
         super(BatchTransformerForMLM, self).__init__(name=name)
         
         # Initialize model
-        config = DistilBertConfig(vocab_size=30522, n_layers=3) # this is specific to distilbert
-        mlm_model = transformer(config)
-        #mlm_model = transformer.from_pretrained(init_weights)
+        #config = DistilBertConfig(vocab_size=30522, n_layers=3) # this is specific to distilbert
+        #mlm_model = transformer(config)
+        mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
         self.vocab_dense = mlm_model.layers[1] # this could be replaced
         self.act = mlm_model.act
@@ -368,10 +368,10 @@ class BatchTransformerForContextMLM(keras.Model):
                                          example['attention_mask'], # attention_mask - CHECK
                                          None,  # head_mask
                                          False, # output_attentions
-                                         training=False)  # check this.
-            ### Check if trainable?
+                                         training=False)  # CHECK IF TRAINABLE!
+            
             hidden_state = layer_outputs[-1]
-            context = self._pool_contexts(hidden_states)
+            context = self._pool_contexts(hidden_state)
             hidden_state = hidden_state + context # Could also integrate with concatenation
 
         return hidden_state

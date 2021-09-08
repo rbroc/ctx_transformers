@@ -172,13 +172,13 @@ def _run_training(log_path,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False,
+                      eval_before_training=False, ### EDITED
                       test_steps=n_test_steps)
 
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=False, # edited
+                shuffle=False, #### EDITED
                 transform=mlm_transform,
                 transform_dynamic=True,
                 transform_test=True,
