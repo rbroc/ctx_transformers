@@ -315,9 +315,9 @@ class BatchTransformerForContextMLM(keras.Model):
         
     
         # Create encoder
-        config = DistilBertConfig(vocab_size=30522, n_layers=6) # May need to be removed
-        mlm_model = transformer(config)
-        #mlm_model = transformer.from_pretrained(init_weights)
+        #config = DistilBertConfig(vocab_size=30522, n_layers=6) # May need to be removed
+        #mlm_model = transformer(config)
+        mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
         
         # Create dense
