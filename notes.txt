@@ -1,7 +1,16 @@
 Next up:
+# CHECK:
+- That the way the model updates is correct
+    - E.g., make copies of layers, concatenate better, etc.
+    - Or rely on HF updates?
+- Make masking easier?
+
+
+# THEN
+- Try with different optimizers - in progress, but e.g., increase LR on Adam
 - Try other MLM protocols
-    - Skip connections
-    - Add one layer
+    - Skip connection concat
+    - Add one attention layer
     - Other
     - Previous + concatenate?
 - Classifier for triplet loss

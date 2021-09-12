@@ -128,9 +128,10 @@ def _run_training(log_path,
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        optimizer = create_optimizer(2e-5,
-                                     num_train_steps=n_train_steps * n_epochs,
-                                     num_warmup_steps=n_train_steps / 10)
+        #optimizer = create_optimizer(2e-5,
+        #                             num_train_steps=n_train_steps * n_epochs,
+        #                             num_warmup_steps=n_train_steps / 10)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,
