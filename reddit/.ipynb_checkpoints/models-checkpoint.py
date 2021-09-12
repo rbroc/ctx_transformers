@@ -371,9 +371,9 @@ class BatchTransformerForContextMLM(keras.Model):
                                          training=False)  # CHECK IF TRAINABLE!
             
             hidden_state = layer_outputs[-1]
-            context = self._pool_contexts(hidden_state)
-            hidden_state = hidden_state + context # Could also integrate with concatenation
-
+            if (i + 1) == len(self.encoder._layers[1].layer): # added
+                context = self._pool_contexts(hidden_state)
+                hidden_state = hidden_state + context # Could also integrate with concatenatio
         return hidden_state
     
     def _pool_contexts(self, hidden_state): # experiment with this
