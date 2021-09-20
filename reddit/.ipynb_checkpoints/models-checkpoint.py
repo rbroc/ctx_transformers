@@ -5,12 +5,14 @@ from tensorflow.keras.layers import (Dense,
                                      Multiply, 
                                      MultiHeadAttention,
                                      Lambda, Dot, 
-                                     LayerNormalization)
+                                     LayerNormalization,
+                                     Dropout)
 from reddit.utils import (average_encodings, 
                           load_weights_from_huggingface)
 from reddit import MLMContextMerger
 from transformers.modeling_tf_utils import get_initializer
 from transformers import DistilBertConfig
+import itertools
 
 
 class BatchTransformer(keras.Model):
@@ -328,6 +330,7 @@ class BatchTransformerForContextMLM(keras.Model):
         self.encoder = mlm_model.layers[0]
         
         # Create aggregator
+        self.dropout = Dropout(rate=.3)
         if self.aggregate == 'concatenate': 
             self.agg_layer = Concatenate(axis=-1)
         elif self.aggregate == 'attention':
@@ -337,7 +340,9 @@ class BatchTransformerForContextMLM(keras.Model):
         
         # Create dense
         if add_dense is not None and add_dense > 0:
-            self.dense_layers = keras.Sequential([Dense(units=d)for d in dims])
+            self.dense_layers = keras.Sequential(list(itertools.chain(*[[Dense(units=d), 
+                                                                         Dropout(.2)] 
+                                                                         for d in dims])))
         else:
             self.dense_layers = None
         
@@ -393,8 +398,9 @@ class BatchTransformerForContextMLM(keras.Model):
         if self.aggregate != 'attention':
             context = tf.reduce_mean(contexts, axis=1, keepdims=True)
             context_broadcasted = tf.repeat(context, self.n_tokens, axis=1)
-            out = target + context_broadcasted
-            #out = self.agg_layer([target, context_broadcasted])
+            #out = target + context_broadcasted
+            out = self.agg_layer([target, 
+                                  context_broadcasted])
         else:
             out = self.agg_layer(target, contexts)
             out = target + out
@@ -402,14 +408,14 @@ class BatchTransformerForContextMLM(keras.Model):
         return out
     
     def call(self, input):
-        hidden_states = tf.vectorized_map(self._encode_batch, elems=input)
+        hidden_states = tf.vectorized_map(self._encode_batch, 
+                                          elems=input)
         target = hidden_states[:,0,:,:]
         contexts = self._pool_contexts(hidden_states)
         out = self._aggregate(target, contexts)
-        
-        if self.dense_layers is not None: # could probably remove
+        out = self.dropout(out)
+        if self.dense_layers is not None:
             out = self.dense_layers(out)
-        
         out = self.vocab_dense(out)
         out = self.act(out)
         out = self.vocab_layernorm(out)
