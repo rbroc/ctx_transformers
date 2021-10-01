@@ -148,7 +148,8 @@ class BatchTransformerForMLM(keras.Model):
                  freeze_encoder=True,
                  freeze_encoder_layers=None,
                  freeze_head=False,
-                 reset_head=False):
+                 reset_head=False,
+                 from_scratch=False):
         
         # Name parameters
         if freeze_encoder:
@@ -175,9 +176,11 @@ class BatchTransformerForMLM(keras.Model):
         super(BatchTransformerForMLM, self).__init__(name=name)
         
         # Initialize model
-        #config = DistilBertConfig(vocab_size=30522, n_layers=3) # this is specific to distilbert
-        #mlm_model = transformer(config)
-        mlm_model = transformer.from_pretrained(init_weights)
+        if from_scratch:
+            config = DistilBertConfig(vocab_size=30522, n_layers=3) # this is specific to distilbert
+            mlm_model = transformer(config)
+        else:
+            mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
         self.vocab_dense = mlm_model.layers[1] # this could be replaced
         self.act = mlm_model.act
@@ -261,7 +264,8 @@ class BatchTransformerForContextMLM(keras.Model):
                  dims=768,
                  n_tokens=512,
                  context_pooling='cls',
-                 batch_size=1):
+                 batch_size=1,
+                 from_scratch=False):
         
         # Name parameters
         if freeze_encoder:
@@ -316,9 +320,11 @@ class BatchTransformerForContextMLM(keras.Model):
         
     
         # Create encoder
-        #config = DistilBertConfig(vocab_size=30522, n_layers=6)
-        #mlm_model = transformer(config)
-        mlm_model = transformer.from_pretrained(init_weights)
+        if from_scratch:
+            config = DistilBertConfig(vocab_size=30522, n_layers=6)
+            mlm_model = transformer(config)
+        else:
+            mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
         
         # Create dense
