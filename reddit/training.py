@@ -109,7 +109,10 @@ class Trainer:
         ''' Run training/test step on all replicas '''
         step_outs = self.strategy.run(self._train_step, args=(global_batch,
                                                               labels))
-        return [getattr(o,'values') for o in step_outs]
+        gradsum = [self.strategy.reduce(tf.distribute.ReduceOp.MEAN, 
+                                        g,
+                                        axis=None) for g in gradients] # could sum?
+        return [getattr(o,'values') for o in step_outs], gradsum
 
     
     @tf.function
