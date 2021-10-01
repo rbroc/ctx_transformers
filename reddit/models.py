@@ -11,6 +11,7 @@ from reddit.utils import (average_encodings,
 from reddit import MLMContextMerger
 from transformers.modeling_tf_utils import get_initializer
 from transformers import DistilBertConfig
+from reddit.src.distilbert import CTXTransformerBlock
 
 
 class BatchTransformer(keras.Model):
@@ -315,9 +316,9 @@ class BatchTransformerForContextMLM(keras.Model):
         
     
         # Create encoder
-        config = DistilBertConfig(vocab_size=30522, n_layers=6)
-        mlm_model = transformer(config)
-        #mlm_model = transformer.from_pretrained(init_weights)
+        #config = DistilBertConfig(vocab_size=30522, n_layers=6)
+        #mlm_model = transformer(config)
+        mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
         
         # Create dense
@@ -359,41 +360,51 @@ class BatchTransformerForContextMLM(keras.Model):
                                    for w in layer.weights])
         self.output_signature = tf.float32
         self.batch_size = batch_size
-
+        
+        
     def _encode_batch(self, example):
-        embs = self.encoder._layers[0](example['input_ids'])
+        output = self.encoder(input_ids=example['input_ids'],
+                              attention_mask=example['attention_mask'])
+        return output.last_hidden_state
+        
+        
+    #def _encode_batch(self, example):
+    #    embs = self.encoder._layers[0](example['input_ids'])
 
-        for i, layer_module in enumerate(self.encoder._layers[1].layer):
-            layer_outputs = layer_module(embs, 
-                                         example['attention_mask'], # attention_mask - CHECK
-                                         None,  # head_mask
-                                         False, # output_attentions
-                                         training=False)  # CHECK IF TRAINABLE!
-            
-            hidden_state = layer_outputs[-1]
-            if (i + 1) == len(self.encoder._layers[1].layer): # added
-                context = self._pool_contexts(hidden_state)
-                hidden_state = hidden_state + context # Could also integrate with concatenatio
-        return hidden_state
+        #for i, layer_module in enumerate(self.encoder._layers[1].layer):
+        #    if i == 0:
+        #        inputs = embs
+        #    else:
+        #        inputs = hidden_state
+        #    layer_outputs = layer_module(inputs, 
+        #                                 example['attention_mask'], # attention_mask - CHECK
+        #                                 None,  # head_mask
+        #                                 False, # output_attentions
+        #                                 training=False)  # CHECK IF TRAINABLE!
+        #    hidden_state = layer_outputs[-1] 
+            # Re-expand dims
+    #   return hidden_state #hidden_state
     
-    def _pool_contexts(self, hidden_state): # experiment with this
-        if self.context_pooling == 'cls':
-            contexts = tf.reduce_mean(hidden_state[1:,0,:], axis=0) # take 
-        elif self.context_pooling == 'mean':
-            contexts = tf.reduce_mean(tf.reduce_mean(hidden_state[1:,1:,:], axis=-2), axis=0)
-        elif self.context_pooling == 'max':
-            contexts = tf.reduce_mean(tf.reduce_max(hidden_state[1:,1:,:], axis=-2), axis=0) # is this correct? # or max max?
-        contexts = tf.expand_dims(contexts, axis=0)
-        contexts = tf.repeat(contexts, self.n_tokens, axis=0)
-        contexts = tf.expand_dims(contexts, axis=0)
-        contexts = tf.pad(contexts, [[0,10],[0,0],[0,0]]) # this is specific to this context size, right now
+    def _pool_contexts(self, c): # experiment with this
+        contexts = tf.reduce_mean(c[:,:,0,:], axis=1, keepdims=True) # take 
+        #contexts = tf.expand_dims(contexts, axis=0)
+        #contexts = tf.repeat(contexts, self.n_tokens, axis=0)
+        #contexts = tf.expand_dims(contexts, axis=0)
+        #contexts = tf.pad(contexts, [[0,10],[0,0],[0,0]]) # this is specific to this context size, right now
         return contexts
     
     def call(self, input):
         hidden_states = tf.vectorized_map(self._encode_batch, elems=input)
-        out = hidden_states[:,0,:,:]
-        if self.dense_layers is not None:
-            out = self.dense_layers(out)
+        target = hidden_states[:,0,:,:] # bs x 512 x 768
+        context = self._pool_contexts(hidden_states[:,1:,:,:]) # bs x 1 x 768
+        context_broadcasted = tf.repeat(context, self.n_tokens, axis=1)
+        out = (target + context_broadcasted) / 2
+        #target = hidden_states[0,0,:,:] # 512 x 768
+        #contexts = self._pool_contexts(hidden_states[0,:,:,:]) # 1 x 768
+        #out = self.attention(target, contexts) # 512 x 768
+        #out = tf.expand_dims(out, axis=0) # 1,512,768
+        #if self.dense_layers is not None:
+        #    out = self.dense_layers(out)
         out = self.vocab_dense(out)
         out = self.act(out)
         out = self.vocab_layernorm(out)
