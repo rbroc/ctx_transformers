@@ -87,10 +87,9 @@ class Trainer:
                                             batch_in_replica['labels'])
             else:
                 loss_out = self.loss_object(model_out)
-        gradients = tape.gradient(loss_out[0], self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients,
-                                           self.model.trainable_variables))
-        return loss_out
+        gradients = tape.gradient(loss_out[0], 
+                                  self.model.trainable_variables)
+        return loss_out, gradients
 
 
     def _test_step(self, batch_in_replica, labels):
@@ -107,8 +106,9 @@ class Trainer:
     @tf.function
     def _run_distributed_train_step(self, global_batch, labels):
         ''' Run training/test step on all replicas '''
-        step_outs = self.strategy.run(self._train_step, args=(global_batch,
-                                                              labels))
+        step_outs, gradients = self.strategy.run(self._train_step, 
+                                                 args=(global_batch,
+                                                       labels))
         gradsum = [self.strategy.reduce(tf.distribute.ReduceOp.MEAN, 
                                         g,
                                         axis=None) for g in gradients] # could sum?
