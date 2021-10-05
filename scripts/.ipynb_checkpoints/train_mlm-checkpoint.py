@@ -148,8 +148,7 @@ def _run_training(log_path,
                                 freeze_head=freeze_head,
                                 freeze_encoder=freeze_encoder,
                                 freeze_encoder_layers=freeze_encoder_layers,
-                                reset_head=reset_head,
-                                from_scratch=from_scratch)
+                                reset_head=reset_head)
         else:
             model = model_class(transformer=TFDistilBertForMaskedLM,
                                 init_weights='distilbert-base-uncased',

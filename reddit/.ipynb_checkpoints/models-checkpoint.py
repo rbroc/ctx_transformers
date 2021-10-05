@@ -5,13 +5,15 @@ from tensorflow.keras.layers import (Dense,
                                      Multiply, 
                                      MultiHeadAttention,
                                      Lambda, Dot, 
-                                     LayerNormalization)
+                                     LayerNormalization,
+                                     Dropout)
 from reddit.utils import (average_encodings, 
                           load_weights_from_huggingface)
 from reddit import MLMContextMerger
 from transformers.modeling_tf_utils import get_initializer
 from transformers import DistilBertConfig
-from reddit.src.distilbert import CTXTransformerBlock
+import itertools
+from transformers.models.distilbert.modeling_tf_distilbert import TFTransformerBlock                                               
 
 
 class BatchTransformer(keras.Model):
@@ -176,8 +178,8 @@ class BatchTransformerForMLM(keras.Model):
         super(BatchTransformerForMLM, self).__init__(name=name)
         
         # Initialize model
-        if from_scratch:
-            config = DistilBertConfig(vocab_size=30522, n_layers=3) # this is specific to distilbert
+        if from_scrach:
+            config = DistilBertConfig(vocab_size=30522, n_layers=3)
             mlm_model = transformer(config)
         else:
             mlm_model = transformer.from_pretrained(init_weights)
@@ -249,6 +251,12 @@ class BatchTransformerForContextMLM(keras.Model):
         context_pooling (str): if 'cls', averages cls tokens to get context
             representations. If 'mean' or 'max' pools token-level 
             representations by averaging or taking the max.
+        aggregate (str): if aggregate is 'dense', if no additional dense layers 
+            are specified after concatenation it adds a converter layer.
+            If 'multiply', multiplies each dimension of the context by each
+                dimension of the token representation. 
+                If 'attention', applies attention head to aggregated 
+                context and token representation.
     '''
     def __init__(self, 
                  transformer, 
@@ -264,6 +272,7 @@ class BatchTransformerForContextMLM(keras.Model):
                  dims=768,
                  n_tokens=512,
                  context_pooling='cls',
+                 aggregate='concatenate',
                  batch_size=1,
                  from_scratch=False):
         
@@ -308,7 +317,7 @@ class BatchTransformerForContextMLM(keras.Model):
         if name is None:
             mtype = 'BatchTransformerForContextMLM'
             dense_args = f'{add_dense}-{dims_str}'
-            ctx_args = f'{context_pooling}-noagg'
+            ctx_args = f'{context_pooling}-{aggregate}'
             name = f'{mtype}-{freeze_str}-{load_str}-{dense_args}-{ctx_args}-{reset_str}-{fhead_str}'
         super(BatchTransformerForContextMLM, self).__init__(name=name)
         
@@ -317,19 +326,29 @@ class BatchTransformerForContextMLM(keras.Model):
         if context_pooling not in ['cls', 'mean', 'max']:
             raise ValueError('context_pooling must be cls, mean or max')
         self.context_pooling = context_pooling
+        self.aggregate = aggregate
         
-    
         # Create encoder
+        config = DistilBertConfig(vocab_size=30522, n_layers=3)
         if from_scratch:
-            config = DistilBertConfig(vocab_size=30522, n_layers=6)
             mlm_model = transformer(config)
         else:
             mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
+        self.ctxtrans = CTXTransformerBlock(config)
+        self.ctxtrans.trainable = True
+        
+        # Create aggregator
+        if self.aggregate == 'concatenate': 
+            self.agg_layer = Concatenate(axis=-1)
+        elif self.aggregate == 'attention':
+            self.agg_layer = MultiHeadAttention(num_heads=6, 
+                                                key_dim=768)
+            self.att_norm = LayerNormalization()
         
         # Create dense
         if add_dense is not None and add_dense > 0:
-            self.dense_layers = keras.Sequential([Dense(units=d)for d in dims])
+            self.dense_layers = keras.Sequential([Dense(units=d) for d in dims])
         else:
             self.dense_layers = None
         
@@ -361,56 +380,40 @@ class BatchTransformerForContextMLM(keras.Model):
             initializer = get_initializer()
             for layer in [self.vocab_dense, 
                           self.vocab_layernorm, 
-                          self.vocab_projector]:
+                          self.vocab_projector, 
+                          self.vocab_dense_ctx, 
+                          self.vocab_layernorm_ctx, 
+                          self.vocab_projector_ctx, ]:
                 layer.set_weights([initializer(w.shape) 
                                    for w in layer.weights])
         self.output_signature = tf.float32
         self.batch_size = batch_size
-        
-        
+
     def _encode_batch(self, example):
+        # FOR EACH LAYER, RUN STUFF
         output = self.encoder(input_ids=example['input_ids'],
                               attention_mask=example['attention_mask'])
-        return output.last_hidden_state
-        
-        
-    #def _encode_batch(self, example):
-    #    embs = self.encoder._layers[0](example['input_ids'])
-
-        #for i, layer_module in enumerate(self.encoder._layers[1].layer):
-        #    if i == 0:
-        #        inputs = embs
-        #    else:
-        #        inputs = hidden_state
-        #    layer_outputs = layer_module(inputs, 
-        #                                 example['attention_mask'], # attention_mask - CHECK
-        #                                 None,  # head_mask
-        #                                 False, # output_attentions
-        #                                 training=False)  # CHECK IF TRAINABLE!
-        #    hidden_state = layer_outputs[-1] 
-            # Re-expand dims
-    #   return hidden_state #hidden_state
+        ctxout = self.ctxtrans(output.last_hidden_state, 
+                               example['attention_mask'],
+                               None, False, True)[0]
+        ctxout = tf.reduce_mean(ctxout[1:,0,:], axis=0, keepdims=True)# 1,768
+        ctxout = tf.repeat(ctxout, self.n_tokens, axis=0) #512,768
+        return output.last_hidden_state + ctxout # adding, but could concatenate or sth
+        # could it theory do this at every step
     
-    def _pool_contexts(self, c): # experiment with this
-        contexts = tf.reduce_mean(c[:,:,0,:], axis=1, keepdims=True) # take 
-        #contexts = tf.expand_dims(contexts, axis=0)
-        #contexts = tf.repeat(contexts, self.n_tokens, axis=0)
-        #contexts = tf.expand_dims(contexts, axis=0)
-        #contexts = tf.pad(contexts, [[0,10],[0,0],[0,0]]) # this is specific to this context size, right now
+    def _pool_contexts(self, hidden_states):
+        if self.context_pooling == 'cls':
+            contexts = hidden_states[:,1:,0,:]
+        elif self.context_pooling == 'mean':
+            contexts = tf.reduce_mean(hidden_states[:,1:,1:,:], axis=-2)
+        elif self.context_pooling == 'max':
+            contexts = tf.reduce_max(hidden_states[:,1:,1:,:], axis=-2)
         return contexts
     
     def call(self, input):
-        hidden_states = tf.vectorized_map(self._encode_batch, elems=input)
-        target = hidden_states[:,0,:,:] # bs x 512 x 768
-        context = self._pool_contexts(hidden_states[:,1:,:,:]) # bs x 1 x 768
-        context_broadcasted = tf.repeat(context, self.n_tokens, axis=1)
-        out = (target + context_broadcasted) / 2
-        #target = hidden_states[0,0,:,:] # 512 x 768
-        #contexts = self._pool_contexts(hidden_states[0,:,:,:]) # 1 x 768
-        #out = self.attention(target, contexts) # 512 x 768
-        #out = tf.expand_dims(out, axis=0) # 1,512,768
-        #if self.dense_layers is not None:
-        #    out = self.dense_layers(out)
+        outs = tf.vectorized_map(self._encode_batch, 
+                                elems=input)
+        out = outs[:,0,:,:]
         out = self.vocab_dense(out)
         out = self.act(out)
         out = self.vocab_layernorm(out)
