@@ -13,7 +13,7 @@ from reddit import MLMContextMerger
 from transformers.modeling_tf_utils import get_initializer
 from transformers import DistilBertConfig
 import itertools
-from transformers.models.distilbert.modeling_tf_distilbert import TFTransformerBlock                                               
+from reddit.src.distilbert import CTXTransformerBlock                                               
 
 
 class BatchTransformer(keras.Model):
@@ -274,7 +274,8 @@ class BatchTransformerForContextMLM(keras.Model):
                  context_pooling='cls',
                  aggregate='concatenate',
                  batch_size=1,
-                 from_scratch=False):
+                 from_scratch=False, 
+                 hierarchical=False):
         
         # Name parameters
         if freeze_encoder:
@@ -335,8 +336,6 @@ class BatchTransformerForContextMLM(keras.Model):
         else:
             mlm_model = transformer.from_pretrained(init_weights)
         self.encoder = mlm_model.layers[0]
-        self.ctxtrans = CTXTransformerBlock(config)
-        self.ctxtrans.trainable = True
         
         # Create aggregator
         if self.aggregate == 'concatenate': 
@@ -348,7 +347,9 @@ class BatchTransformerForContextMLM(keras.Model):
         
         # Create dense
         if add_dense is not None and add_dense > 0:
-            self.dense_layers = keras.Sequential([Dense(units=d) for d in dims])
+            self.dense_layers = [LayerNormalization(epsilon=1e-12),
+                                 Dense(units=dims[0], activation='relu'),
+                                 LayerNormalization(epsilon=1e-12)]
         else:
             self.dense_layers = None
         
@@ -358,6 +359,7 @@ class BatchTransformerForContextMLM(keras.Model):
         self.vocab_layernorm = mlm_model.layers[2]
         self.vocab_projector = mlm_model.layers[-1]
         self.vocab_size = mlm_model.vocab_size
+        self.hierarchical = hierarchical
         
         # Freeze
         if load_encoder_weights and load_encoder_model_class:
@@ -380,39 +382,32 @@ class BatchTransformerForContextMLM(keras.Model):
             initializer = get_initializer()
             for layer in [self.vocab_dense, 
                           self.vocab_layernorm, 
-                          self.vocab_projector, 
-                          self.vocab_dense_ctx, 
-                          self.vocab_layernorm_ctx, 
-                          self.vocab_projector_ctx, ]:
+                          self.vocab_projector]:
                 layer.set_weights([initializer(w.shape) 
                                    for w in layer.weights])
         self.output_signature = tf.float32
         self.batch_size = batch_size
-
+   
     def _encode_batch(self, example):
-        # FOR EACH LAYER, RUN STUFF
-        output = self.encoder(input_ids=example['input_ids'],
-                              attention_mask=example['attention_mask'])
-        ctxout = self.ctxtrans(output.last_hidden_state, 
-                               example['attention_mask'],
-                               None, False, True)[0]
-        ctxout = tf.reduce_mean(ctxout[1:,0,:], axis=0, keepdims=True)# 1,768
-        ctxout = tf.repeat(ctxout, self.n_tokens, axis=0) #512,768
-        return output.last_hidden_state + ctxout # adding, but could concatenate or sth
-        # could it theory do this at every step
+        out = self.encoder(input_ids=example['input_ids'], 
+                            attention_mask=example['attention_mask'])
+        return out.last_hidden_state
     
-    def _pool_contexts(self, hidden_states):
-        if self.context_pooling == 'cls':
-            contexts = hidden_states[:,1:,0,:]
-        elif self.context_pooling == 'mean':
-            contexts = tf.reduce_mean(hidden_states[:,1:,1:,:], axis=-2)
-        elif self.context_pooling == 'max':
-            contexts = tf.reduce_max(hidden_states[:,1:,1:,:], axis=-2)
-        return contexts
+    def _encode_batch_hierarchical(self, example):
+        
+        
     
     def call(self, input):
-        outs = tf.vectorized_map(self._encode_batch, 
-                                elems=input)
+        hidden_state = tf.vectorized_map(self._encode_batch, 
+                                         elems=input)
+        ctx = tf.reduce_mean(hidden_state[:,1:,0,:], axis=1, keepdims=True) # 1 x 1 x 768
+        ctx = self.dense_layers[0](ctx)
+        ctx = tf.expand_dims(ctx, axis=2) # 1 x 1 x 1 x 768 
+        ctx = tf.repeat(ctx, 11, axis=1) # 1 x 11 x 1 x 768
+        ctx = tf.repeat(ctx, 512, axis=2) # 1 x 11 x 512 x 768
+        outs = hidden_state + ctx
+        outs = self.dense_layers[1](outs)
+        outs = self.dense_layers[2](outs + hidden_state)
         out = outs[:,0,:,:]
         out = self.vocab_dense(out)
         out = self.act(out)
@@ -467,11 +462,17 @@ class BatchTransformerForAggregates(keras.Model):
 
 
     def call(self, input):
-        encodings = tf.vectorized_map(self._encode_batch, elems=input)
-        out = tf.reduce_mean(encodings, axis=1)
-        if self.dense_layers:
-            out = self.dense_layers(out)
-        out = self.head(out)
-        return out
+        if self.hierarchical is False:
+            encodings = tf.vectorized_map(self._encode_batch, elems=input)
+            out = tf.reduce_mean(encodings, axis=1)
+            if self.dense_layers:
+                out = self.dense_layers(out)
+            out = self.head(out)
+            
+            
+            
+            return out
+        else:
+            
 
         

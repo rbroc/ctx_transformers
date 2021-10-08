@@ -189,22 +189,17 @@ class CTXTransformerBlock(tf.keras.layers.Layer):
         """
         # Self-Attention
         attn_mask = tf.constant(1, shape=[1,11]) # hard-coded
-        x = tf.expand_dims(x, axis=0)
         sa_output = self.attention(x, x, x, 
                                    attn_mask, 
                                    head_mask, output_attentions, training=training)
-        if output_attentions:
-            sa_output, sa_weights = sa_output  # (bs, seq_length, dim), (bs, n_heads, seq_length, seq_length)
-        else:  # To handle these `output_attentions` or `output_hidden_states` cases returning tuples
-            # assert type(sa_output) == tuple
-            sa_output = sa_output[0]
-        sa_output = self.sa_layer_norm(sa_output + x)
+        sa_output = sa_output[0]
+        #sa_output = self.sa_layer_norm(sa_output + x)
 
         # Feed Forward Network
-        ffn_output = self.ffn(sa_output, training=training)
-        ffn_output = self.output_layer_norm(ffn_output + sa_output) # 1 x 11 x 768
+        #ffn_output = self.ffn(sa_output, training=training)
+        #ffn_output = self.output_layer_norm(ffn_output + sa_output) # 1 x 11 x 768
 
-        return ffn_output[0, :, :] # 11 x 768
+        return sa_output[0,:,:] # 1 x 11 x 768
 
     # Then expand dims to 1
     # Pad axis 1 w/ 0,511, axis 2 with nothing
