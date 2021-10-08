@@ -394,26 +394,43 @@ class BatchTransformerForContextMLM(keras.Model):
         return out.last_hidden_state
     
     def _encode_batch_hierarchical(self, example):
-        
-        
+        hidden_state = self.encoder._layers[0](example['input_ids'])
+
+        for i, layer_module in enumerate(self.encoder._layers[1].layer):
+            layer_outputs = layer_module(hidden_state, 
+                                         example['attention_mask'],
+                                         None,
+                                         False,
+                                         training=False)
+            hidden_state = layer_outputs[-1]
+            if (i+1)!=len(self.encoder._layers[1].layer):
+                
+            
+            context = self._pool_contexts(hidden_states)
+            hidden_state = hidden_state + context # Could also integrate with concatenation
+        return 
     
     def call(self, input):
-        hidden_state = tf.vectorized_map(self._encode_batch, 
-                                         elems=input)
-        ctx = tf.reduce_mean(hidden_state[:,1:,0,:], axis=1, keepdims=True) # 1 x 1 x 768
-        ctx = self.dense_layers[0](ctx)
-        ctx = tf.expand_dims(ctx, axis=2) # 1 x 1 x 1 x 768 
-        ctx = tf.repeat(ctx, 11, axis=1) # 1 x 11 x 1 x 768
-        ctx = tf.repeat(ctx, 512, axis=2) # 1 x 11 x 512 x 768
-        outs = hidden_state + ctx
-        outs = self.dense_layers[1](outs)
-        outs = self.dense_layers[2](outs + hidden_state)
-        out = outs[:,0,:,:]
-        out = self.vocab_dense(out)
-        out = self.act(out)
-        out = self.vocab_layernorm(out)
-        logits = self.vocab_projector(out)
-        return logits
+        if self.hierarchical is False:
+            hidden_state = tf.vectorized_map(self._encode_batch, 
+                                             elems=input)
+            ctx = tf.reduce_mean(hidden_state[:,1:,0,:], axis=1, keepdims=True) # 1 x 1 x 768
+            ctx = self.dense_layers[0](ctx)
+            ctx = tf.expand_dims(ctx, axis=2) # 1 x 1 x 1 x 768 
+            ctx = tf.repeat(ctx, 11, axis=1) # 1 x 11 x 1 x 768
+            ctx = tf.repeat(ctx, 512, axis=2) # 1 x 11 x 512 x 768
+            outs = hidden_state + ctx
+            outs = self.dense_layers[1](outs)
+            outs = self.dense_layers[2](outs + hidden_state)
+            out = outs[:,0,:,:]
+            out = self.vocab_dense(out)
+            out = self.act(out)
+            out = self.vocab_layernorm(out)
+            logits = self.vocab_projector(out)
+            return logits
+        else:
+            hidden_state = tf.vectorized_map(self._encode_batch_hierarchical, 
+                                             elems=input)
     
 
 class BatchTransformerForAggregates(keras.Model):
@@ -462,17 +479,11 @@ class BatchTransformerForAggregates(keras.Model):
 
 
     def call(self, input):
-        if self.hierarchical is False:
-            encodings = tf.vectorized_map(self._encode_batch, elems=input)
-            out = tf.reduce_mean(encodings, axis=1)
-            if self.dense_layers:
-                out = self.dense_layers(out)
-            out = self.head(out)
-            
-            
-            
-            return out
-        else:
-            
+        encodings = tf.vectorized_map(self._encode_batch, elems=input)
+        out = tf.reduce_mean(encodings, axis=1)
+        if self.dense_layers:
+            out = self.dense_layers(out)
+        out = self.head(out)
+        return out
 
         
