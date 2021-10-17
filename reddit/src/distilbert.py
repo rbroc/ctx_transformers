@@ -193,22 +193,10 @@ class CTXTransformerBlock(tf.keras.layers.Layer):
                                    attn_mask, 
                                    head_mask, output_attentions, training=training)
         sa_output = sa_output[0]
-        #sa_output = self.sa_layer_norm(sa_output + x)
+        #sa_output = self.sa_layer_norm(sa_output + x) # could remove
 
         # Feed Forward Network
         #ffn_output = self.ffn(sa_output, training=training)
         #ffn_output = self.output_layer_norm(ffn_output + sa_output) # 1 x 11 x 768
 
-        return sa_output[0,:,:] # 1 x 11 x 768
-
-    # Then expand dims to 1
-    # Pad axis 1 w/ 0,511, axis 2 with nothing
-    # Sum
-    
-
-    
-    
-    # Take bs x 11 x 768 ??
-    # Apply attention
-    # Add dimension so that bs x 11 x 1 x 768
-    # Pad so that bs bs x 11 x 512 x 768
+        return sa_output[0,:,:] # 11 x 768

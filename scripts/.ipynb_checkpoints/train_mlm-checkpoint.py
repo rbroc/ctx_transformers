@@ -49,7 +49,8 @@ parser.add_argument('--n-tokens', type=int, default=512,
                     help='Number of tokens in encoding')
 parser.add_argument('--context-pooling', type=str, default='cls',
                     help='How to pool context')
-
+parser.add_argument('--hierarchical', type=int, default=0,
+                    help='Whether hierarchical training')
 
 # Define boolean args
 parser.add_argument('--test-only', dest='test_only', action='store_true',
@@ -85,7 +86,13 @@ def _run_training(log_path,
                   test_only,
                   context_pooling, 
                   update_every,
-                  from_scratch):
+                  from_scratch, 
+                  hierarchical):
+    
+    if hierarchical == 1:
+        hierarchical = True
+    else:
+        hierarchical = False
     
     # Define type of training
     if context_type == 'single':
@@ -135,10 +142,10 @@ def _run_training(log_path,
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        #optimizer = create_optimizer(2e-5,
-        #                             num_train_steps=n_train_steps * n_epochs,
-        #                             num_warmup_steps=n_train_steps / 10)
-        optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
+        optimizer = create_optimizer(2e-5,
+                                     num_train_steps=n_train_steps * n_epochs,
+                                     num_warmup_steps=n_train_steps / 10)
+        #optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5) # consider this being the problem?
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,
@@ -148,7 +155,8 @@ def _run_training(log_path,
                                 freeze_head=freeze_head,
                                 freeze_encoder=freeze_encoder,
                                 freeze_encoder_layers=freeze_encoder_layers,
-                                reset_head=reset_head)
+                                reset_head=reset_head,
+                                from_scratch=from_scratch)
         else:
             model = model_class(transformer=TFDistilBertForMaskedLM,
                                 init_weights='distilbert-base-uncased',
@@ -163,7 +171,8 @@ def _run_training(log_path,
                                 n_tokens=n_tokens,
                                 context_pooling=context_pooling,
                                 batch_size=per_replica_batch_size,
-                                from_scratch=from_scratch)
+                                from_scratch=from_scratch, 
+                                hierarchical=hierarchical)
         loss = MLMLoss()
         
 
@@ -219,4 +228,5 @@ if __name__=='__main__':
                   test_only=args.test_only,
                   context_pooling=args.context_pooling,
                   update_every=args.update_every,
-                  from_scratch=args.from_scratch)
+                  from_scratch=args.from_scratch,
+                  hierarchical=args.hierarchical)
