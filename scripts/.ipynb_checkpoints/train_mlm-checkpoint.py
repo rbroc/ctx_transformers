@@ -32,6 +32,8 @@ parser.add_argument('--n-epochs', type=int, default=3,
                     help='Number of epochs')
 parser.add_argument('--start-epoch', type=int, default=0,
                     help='Epoch to start from')
+parser.add_argument('--update-every', type=int, default=16,
+                    help='Update every n steps')
 parser.add_argument('--load-encoder-weights', type=str, default=None,
                     help='Path to model weights to load (huggingface version)')
 parser.add_argument('--freeze-encoder-layers', nargs='+', default=None,
@@ -47,9 +49,8 @@ parser.add_argument('--n-tokens', type=int, default=512,
                     help='Number of tokens in encoding')
 parser.add_argument('--context-pooling', type=str, default='cls',
                     help='How to pool context')
-parser.add_argument('--aggregate', type=str, default='concatenate',
-                    help='How to aggregate context and target')
-
+parser.add_argument('--hierarchical', type=int, default=0,
+                    help='Whether hierarchical training')
 
 # Define boolean args
 parser.add_argument('--test-only', dest='test_only', action='store_true',
@@ -60,8 +61,11 @@ parser.add_argument('--freeze-head', dest='freeze_head', action='store_true',
                     help='Whether to freeze classification head')
 parser.add_argument('--reset-head', dest='reset_head', action='store_true',
                     help='Whether to reinitialize classification head')
+parser.add_argument('--from-scratch', dest='from_scratch', action='store_true',
+                    help='Whether to train from scratch')
 parser.set_defaults(test_only=False, freeze_head=False, 
-                    freeze_encoder=True, reset_head=False)
+                    freeze_encoder=True, reset_head=False,
+                    from_scratch=False)
 
 
 def _run_training(log_path, 
@@ -80,8 +84,15 @@ def _run_training(log_path,
                   dims,
                   n_tokens,
                   test_only,
-                  context_pooling,
-                  aggregate):
+                  context_pooling, 
+                  update_every,
+                  from_scratch, 
+                  hierarchical):
+    
+    if hierarchical == 1:
+        hierarchical = True
+    else:
+        hierarchical = False
     
     # Define type of training
     if context_type == 'single':
@@ -134,6 +145,7 @@ def _run_training(log_path,
         optimizer = create_optimizer(2e-5,
                                      num_train_steps=n_train_steps * n_epochs,
                                      num_warmup_steps=n_train_steps / 10)
+        #optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5) # consider this being the problem?
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,
@@ -143,7 +155,8 @@ def _run_training(log_path,
                                 freeze_head=freeze_head,
                                 freeze_encoder=freeze_encoder,
                                 freeze_encoder_layers=freeze_encoder_layers,
-                                reset_head=reset_head)
+                                reset_head=reset_head,
+                                from_scratch=from_scratch)
         else:
             model = model_class(transformer=TFDistilBertForMaskedLM,
                                 init_weights='distilbert-base-uncased',
@@ -157,8 +170,9 @@ def _run_training(log_path,
                                 dims=dims,
                                 n_tokens=n_tokens,
                                 context_pooling=context_pooling,
-                                aggregate=aggregate,
-                                batch_size=per_replica_batch_size)
+                                batch_size=per_replica_batch_size,
+                                from_scratch=from_scratch, 
+                                hierarchical=hierarchical)
         loss = MLMLoss()
         
 
@@ -176,13 +190,14 @@ def _run_training(log_path,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False,
-                      test_steps=n_test_steps)
+                      eval_before_training=False, ### EDITED
+                      test_steps=n_test_steps,
+                      update_every=update_every)
 
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=False, # edited
+                shuffle=False, #### EDITED
                 transform=mlm_transform,
                 transform_dynamic=True,
                 transform_test=True,
@@ -212,4 +227,6 @@ if __name__=='__main__':
                   n_tokens=args.n_tokens,
                   test_only=args.test_only,
                   context_pooling=args.context_pooling,
-                  aggregate=args.aggregate)
+                  update_every=args.update_every,
+                  from_scratch=args.from_scratch,
+                  hierarchical=args.hierarchical)

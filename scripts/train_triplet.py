@@ -96,10 +96,11 @@ def _run_training(log_path, dataset_name, n_anchor, n_pos, n_neg,
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        optimizer = create_optimizer(train_params['optimizer_learning_rate'],
-                                     num_train_steps=train_params['optimizer_n_train_steps'], 
-                                     num_warmup_steps=train_params['optimizer_n_warmup_steps'])
-        model = BatchTransformer(train_params['model'], 
+        #optimizer = create_optimizer(train_params['optimizer_learning_rate'],
+        #                             num_train_steps=train_params['optimizer_n_train_steps'], 
+        #                             num_warmup_steps=train_params['optimizer_n_warmup_steps'])
+        optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
+	model = BatchTransformer(train_params['model'], 
                                  train_params['weights'])
         loss = TripletLossBase(train_params['loss_margin'],
                                n_pos=ds_params['n_pos'],

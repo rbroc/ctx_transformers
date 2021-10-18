@@ -3,7 +3,6 @@ from tensorflow import keras
 from reddit.utils import (average_encodings, 
                           compute_mean_pairwise_distance)
 from abc import ABC, abstractmethod
-import tensorflow_probability as tfp
 
 
 class TripletLoss(ABC):

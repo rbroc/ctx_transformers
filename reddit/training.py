@@ -50,7 +50,8 @@ class Trainer:
                  mlm_type=None,
                  checkpoint_device=None,
                  log_path='..',
-                 eval_before_training=True):
+                 eval_before_training=True,
+                 update_every=1):
         self.train_vars = LOG_DICT[ds_type]
         self.test_vars = ['test_' + v for v in self.train_vars]
         self.meta_vars = META_DICT[ds_type]
@@ -74,6 +75,7 @@ class Trainer:
         self.model_ckpt = ModelCheckpoint(self, checkpoint_device, log_path)
         self.opt_ckpt = OptimizerCheckpoint(self, log_path)
         self.eval_before_training = eval_before_training
+        self.update_every = update_every
 
 
     def _train_step(self, batch_in_replica, labels):
@@ -85,10 +87,9 @@ class Trainer:
                                             batch_in_replica['labels'])
             else:
                 loss_out = self.loss_object(model_out)
-        gradients = tape.gradient(loss_out[0], self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients,
-                                           self.model.trainable_variables))
-        return loss_out
+        gradients = tape.gradient(loss_out[0], 
+                                  self.model.trainable_variables)
+        return loss_out, gradients
 
 
     def _test_step(self, batch_in_replica, labels):
@@ -105,9 +106,13 @@ class Trainer:
     @tf.function
     def _run_distributed_train_step(self, global_batch, labels):
         ''' Run training/test step on all replicas '''
-        step_outs = self.strategy.run(self._train_step, args=(global_batch,
-                                                              labels))
-        return [getattr(o,'values') for o in step_outs]
+        step_outs, gradients = self.strategy.run(self._train_step, 
+                                                 args=(global_batch,
+                                                       labels))
+        gradsum = [self.strategy.reduce(tf.distribute.ReduceOp.MEAN, 
+                                        g,
+                                        axis=None) for g in gradients] # could sum?
+        return [getattr(o,'values') for o in step_outs], gradsum
 
     
     @tf.function
@@ -117,7 +122,28 @@ class Trainer:
                                                              labels))
         return [getattr(o,'values') for o in step_outs]
 
+    def _gradient_update(self, accumulated_grads):
+        ''' Define gradient update '''
+        avg_grads = [a/(self.update_every) for a in accumulated_grads] # maybe remove?
+        self.optimizer.apply_gradients(zip(accumulated_grads, 
+                                           self.model.trainable_variables))
+        
+    @tf.function
+    def _run_distributed_gradient_update(self, accumulated_grads):
+        ''' Run gradient update on all replicas'''
+        self.strategy.run(self._gradient_update, args=(accumulated_grads,))
+        
     
+    def _accumulate_gradients(self, gradients, accumulated_grads):
+        ''' Update gradients by summing new gradient '''
+        return [tf.add(*g) for g in zip(gradients, 
+                                        accumulated_grads)]
+    
+    def _reset_gradients(self, accumulated_grads):
+        ''' Set accumulated gradients to 0'''
+        return [tf.multiply(w,0.) for w in accumulated_grads]
+        
+        
     def _run_train_epoch(self, epoch, dataset_train, labels):
         ''' Run one training epoch 
         Args:
@@ -130,14 +156,25 @@ class Trainer:
         
         for n, example in enumerate(dataset_train):
             if self.distributed:
-                outs = self._run_distributed_train_step(example, labels)
+                outs, grads = self._run_distributed_train_step(example, labels)
+                if n == 0:
+                    accumulated_grads = grads # initialize gradients
+                accumulated_grads = self._accumulate_gradients(grads, 
+                                                               accumulated_grads)
                 ids = list(tf.concat(example['id'].values, axis=0))
                 meta = [list(tf.concat(example[mvar].values, axis=0)) 
                         for mvar in self.meta_vars]
             else:
-                outs = [[o] for o in self._train_step(example, labels)]
+                outs, grads = [[o] for o in self._train_step(example, labels)]
+                accumulated_grads = self._accumulate_gradients(grads, 
+                                                               accumulated_grads)
                 ids = list(example['id'])
                 meta = [list(example[mvar]) for mvar in self.meta_vars]
+            
+            if ((n+1) % self.update_every) == 0:
+                self._run_distributed_gradient_update(accumulated_grads)
+                accumulated_grads = self._reset_gradients(accumulated_grads)
+            
             self.logger.log(list(outs), epoch, ids, n+1, meta=meta)
             pbar_values = [tf.reduce_mean(o).numpy() for o in outs]
             pb.add(1, values=list(zip(self.pbar_vars, pbar_values)))
@@ -149,7 +186,7 @@ class Trainer:
         
         print('; '.join([f'''Mean {m}: {tf.reduce_mean(self.logger.logdict[m]).numpy()}'''
                           for m in self.pbar_vars]))
-
+        
 
     def _run_test_epoch(self, epoch, dataset_test, labels):
         ''' Run one validation/test epoch 
