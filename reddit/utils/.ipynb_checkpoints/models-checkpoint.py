@@ -29,7 +29,7 @@ def convert_weights_for_huggingface(ckpt_path,
                                    transformers_weights)
     ckpt = tf.train.latest_checkpoint(ckpt_path)
     model.load_weights(ckpt)
-    model.encoder.save_pretrained(outpath)
+    model.encoder.save_pretrained(outpath) # only saves encoder weights
     return 'Model saved!'
 
 

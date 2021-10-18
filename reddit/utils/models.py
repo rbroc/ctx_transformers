@@ -3,6 +3,11 @@ from transformers import TFDistilBertModel
 from pathlib import Path
 
 
+### COULD POSSIBLY REMOVE THIS
+# Probably the most efficient way to do this would be to:
+# Save the model in tensorflow
+# Load 
+
 def convert_weights_for_huggingface(ckpt_path,
                                     model=None,
                                     reddit_model_class=None,
@@ -29,7 +34,7 @@ def convert_weights_for_huggingface(ckpt_path,
                                    transformers_weights)
     ckpt = tf.train.latest_checkpoint(ckpt_path)
     model.load_weights(ckpt)
-    model.encoder.save_pretrained(outpath)
+    model.encoder.save_pretrained(outpath) # only saves encoder weights
     return 'Model saved!'
 
 

@@ -2,9 +2,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import (Dense,
                                      Concatenate,
-                                     Multiply, 
                                      MultiHeadAttention,
-                                     Lambda, Dot, 
                                      LayerNormalization,
                                      Dropout)
 from reddit.utils import (average_encodings, 
@@ -13,10 +11,6 @@ from reddit import MLMContextMerger
 from transformers.modeling_tf_utils import get_initializer
 from transformers import DistilBertConfig
 import itertools
-<<<<<<< HEAD
-=======
-from reddit.src.distilbert import CTXTransformerBlock                                               
->>>>>>> pior
 
 
 class BatchTransformer(keras.Model):
@@ -141,59 +135,47 @@ class BatchTransformerForMLM(keras.Model):
         freeze_encoder_layers (iterator): which layers of the encoder 
             to freeze. Relevant only if freeze_encoder is False.
             Indexing starts from zero.
-        freeze_head (bool): whether to freeze the classification head
         reset_head (bool): whether to reinitialize the classification head
         '''
     def __init__(self, 
                  transformer,
-                 init_weights,
+                 pretrained_weights,
+                 trained_encoder_weights=None,
+                 trained_encoder_model_type=None,
                  name=None,
-                 load_encoder_weights=None,
-                 load_encoder_model_class=None,
-                 freeze_encoder=True,
-                 freeze_encoder_layers=None,
-                 freeze_head=False,
-                 reset_head=False,
-                 from_scratch=False):
+                 n_layers=None,
+                 freeze_encoder=False,
+                 reset_head=False):
         
-        # Name parameters
-        if freeze_encoder:
+        if freeze_encoder is False:
             freeze_str = 'all'
         else:
             if freeze_encoder_layers:
                 freeze_str = '_'.join(list(freeze_encoder_layers))
             else:
                 freeze_str = 'none'
-        if load_encoder_weights is None:
-            load_str = 'pretrained'
-        else:
-            load_str = 'trained'
-        if freeze_head:
-            fhead_str = 'hfreeze'
-        else:
-            fhead_str = 'nohfreeze'
-        if reset_head:
-            reset_str = 'reset'
-        else:
-            reset_str = 'noreset'        
+        load_str = 'pretrained' if load_encoder_weights is None else 'trained'
+        reset_str = 'hreset' if reset_head else 'nhoreset'
+        # 
+        # 
         if name is None:
-            name = f'BatchTransformerForMLM-{freeze_str}-{load_str}-{reset_str}-{fhead_str}'
+            name = f'BatchTransformerForMLM-{freeze_str}-{load_str}-{reset_str}'
         super(BatchTransformerForMLM, self).__init__(name=name)
         
         # Initialize model
-        if from_scratch:
-            config = DistilBertConfig(vocab_size=30522, n_layers=3)
+        if pretrained_weights is None:
+            config = DistilBertConfig(vocab_size=30522, n_layers=n_layers)
             mlm_model = transformer(config)
         else:
-            mlm_model = transformer.from_pretrained(init_weights)
+            mlm_model = transformer.from_pretrained(pretrained_weights) # convert weights
         self.encoder = mlm_model.layers[0]
-        self.vocab_dense = mlm_model.layers[1] # this could be replaced
+        self.vocab_dense = mlm_model.layers[1]
         self.act = mlm_model.act
         self.vocab_layernorm = mlm_model.layers[2]
         self.vocab_projector = mlm_model.layers[-1]
         self.vocab_size = mlm_model.vocab_size
         
-        if load_encoder_weights and load_encoder_model_class:
+        if trained_encoder_weights and load_encoder_model_class:
             load_weights_from_huggingface(model=mlm_model, 
                                           transformers_model_class=load_encoder_model_class,
                                           weights_path=load_encoder_weights,
@@ -205,10 +187,6 @@ class BatchTransformerForMLM(keras.Model):
                 for fl in freeze_encoder_layers:
                     self.encoder._layers[1]._layers[0][int(fl)]._trainable = False
                 self.encoder._layers[0]._trainable = False # freeze embedding layer
-        if freeze_head:
-            self.vocab_dense.trainable = False
-            self.vocab_layernorm.trainable = False
-            self.vocab_projector.trainable = False
         if reset_head:
             initializer = get_initializer()
             for layer in [self.vocab_dense, 
@@ -244,7 +222,6 @@ class BatchTransformerForContextMLM(keras.Model):
         freeze_encoder (bool): whether the whole encoder should be frozen
         freeze_encoder_layers (iterator): which layers of the encoder 
             to freeze (indexing starts from zero).
-        freeze_head (bool): whether to freeze the classification head
         reset_head (bool): whether to re-initialize the classification head
         add_dense (int): number of additional dense layers to add 
             between the encoder and the MLM head, after concatenating
@@ -267,7 +244,6 @@ class BatchTransformerForContextMLM(keras.Model):
                  name=None, 
                  load_encoder_weights=None,
                  load_encoder_model_class=None,
-                 freeze_head=False,
                  reset_head=False,
                  freeze_encoder=True,
                  freeze_encoder_layers=None,
@@ -288,18 +264,10 @@ class BatchTransformerForContextMLM(keras.Model):
                 freeze_str = '_'.join(list(freeze_encoder_layers))
             else:
                 freeze_str = 'none'
-        if load_encoder_weights is None:
-            load_str = 'pretrained'
-        else:
-            load_str = 'trained'
-        if reset_head:
-            reset_str = 'reset'
-        else:
-            reset_str = 'noreset'
-        if freeze_head:
-            fhead_str = 'hfreeze'
-        else:
-            fhead_str = 'nohfreeze'    
+        load_str = 'pretrained' if load_encoder_weights is None else 'trained'
+        reset_str = 'hreset' if reset_head else 'nohreset'
+        
+            
         # Handle dense layers creation
         if add_dense is None or add_dense == 0:
             add_dense = 0
@@ -322,7 +290,7 @@ class BatchTransformerForContextMLM(keras.Model):
             mtype = 'BatchTransformerForContextMLM'
             dense_args = f'{add_dense}-{dims_str}'
             ctx_args = f'{context_pooling}-{aggregate}'
-            name = f'{mtype}-{freeze_str}-{load_str}-{dense_args}-{ctx_args}-{reset_str}-{fhead_str}'
+            name = f'{mtype}-{freeze_str}-{load_str}-{dense_args}-{ctx_args}-{reset_str}'
         super(BatchTransformerForContextMLM, self).__init__(name=name)
         
         # Some useful parameters
@@ -355,11 +323,6 @@ class BatchTransformerForContextMLM(keras.Model):
         
         # Create dense
         if add_dense is not None and add_dense > 0:
-<<<<<<< HEAD
-            self.dense_layers = keras.Sequential(list(itertools.chain(*[[Dense(units=d), 
-                                                                         Dropout(.2)] 
-                                                                         for d in dims])))
-=======
             if hierarchical is True:
                 self.dense_layers = [[Dense(units=dims[0], activation='relu'),
                                       LayerNormalization(epsilon=1e-12)]
@@ -368,7 +331,6 @@ class BatchTransformerForContextMLM(keras.Model):
                 self.dense_layers = [LayerNormalization(epsilon=1e-12),
                                      Dense(units=dims[0], activation='relu'),
                                      LayerNormalization(epsilon=1e-12)]
->>>>>>> pior
         else:
             self.dense_layers = None
         
@@ -392,10 +354,6 @@ class BatchTransformerForContextMLM(keras.Model):
                 for fl in freeze_encoder_layers:
                     self.encoder._layers[1]._layers[0][int(fl)]._trainable = False
                 self.encoder._layers[0]._trainable = False
-        if freeze_head:
-            self.vocab_dense.trainable = False
-            self.vocab_layernorm.trainable = False
-            self.vocab_projector.trainable = False
         if reset_head:
             initializer = get_initializer()
             for layer in [self.vocab_dense, 
@@ -413,36 +371,6 @@ class BatchTransformerForContextMLM(keras.Model):
     
     def _encode_batch_hierarchical(self, example):
         hidden_state = self.encoder._layers[0](example['input_ids'])
-
-<<<<<<< HEAD
-    def _aggregate(self, target, contexts):
-        if self.aggregate != 'attention':
-            context = tf.reduce_mean(contexts, axis=1, keepdims=True)
-            context_broadcasted = tf.repeat(context, self.n_tokens, axis=1)
-            #out = target + context_broadcasted
-            out = self.agg_layer([target, 
-                                  context_broadcasted])
-        else:
-            out = self.agg_layer(target, contexts)
-            out = target + out
-            out = self.att_norm(out)
-        return out
-    
-    def call(self, input):
-        hidden_states = tf.vectorized_map(self._encode_batch, 
-                                          elems=input)
-        target = hidden_states[:,0,:,:]
-        contexts = self._pool_contexts(hidden_states)
-        out = self._aggregate(target, contexts)
-        out = self.dropout(out)
-        if self.dense_layers is not None:
-            out = self.dense_layers(out)
-        out = self.vocab_dense(out)
-        out = self.act(out)
-        out = self.vocab_layernorm(out)
-        logits = self.vocab_projector(out)
-        return logits
-=======
         for i, layer_module in enumerate(self.encoder._layers[1].layer):
             layer_outputs = layer_module(hidden_state, 
                                          example['attention_mask'],
@@ -487,7 +415,6 @@ class BatchTransformerForContextMLM(keras.Model):
             out = self.vocab_layernorm(out)
             logits = self.vocab_projector(out)
             return logits
->>>>>>> pior
     
 
 class BatchTransformerForAggregates(keras.Model):
