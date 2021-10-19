@@ -396,7 +396,7 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         self.encoder = mlm_model.layers[0]
         self.encoder.trainable = True
         self.ctx_transformer = [TFMultiHeadSelfAttention(config, name="attention") 
-                         for _ in range(n_layers-1)]
+                                for _ in range(n_layers-1)]
         for ct in self.ctx_transformer:
             ct.trainable = True
         self.post_transformer_dense = [[Dense(units=dims[0], activation='relu'),
@@ -431,8 +431,12 @@ class HierarchicalTransformerForContextMLM(keras.Model):
             if (i+1)!=len(self.encoder._layers[1].layer):
                 cls_tokens = hidden_state[:,0,:] # get contexts
                 cls_tokens = tf.expand_dims(cls_tokens, axis=0) # expand to fit expected dim
-                cls_tokens = self.ctx_transformer[i](cls_tokens)[0][0,:,:] # pass through attentions
-                cls_tokens = tf.expand_dims(cls_tokens, axis=1) # fit to shape to integrate w/ hidden_states
+                cls_tokens = self.ctx_transformer[i](cls_tokens, cls_tokens, cls_tokens, # pass through attentions
+                                                     tf.constant(1, shape=[1,self.n_contexts+1]), 
+                                                     head_mask=None, 
+                                                     output_attentions=False, 
+                                                     training=True)[0][0,:,:] 
+                cls_tokens = tf.expand_dims(cls_tokens, axis=1) # fit to shape
                 cls_tokens = tf.pad(cls_tokens, [[0,0], 
                                                  [0,self.n_tokens-1], 
                                                  [0,0]])
