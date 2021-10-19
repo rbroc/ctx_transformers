@@ -7,7 +7,7 @@ from .datasets import (split_dataset,
                        prepare_agg)
 from .compute import (compute_mean_pairwise_distance,
                       average_encodings)
-from .models import (convert_weights_for_huggingface,
+from .models import (save_encoder_huggingface,
                      load_weights_from_huggingface)
 from .transforms import (triplet_transform, 
                          mlm_transform, agg_transform)

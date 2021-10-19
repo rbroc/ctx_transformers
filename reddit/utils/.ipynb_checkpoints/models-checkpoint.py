@@ -2,8 +2,13 @@ import tensorflow as tf
 from transformers import TFDistilBertModel
 from pathlib import Path
 
+# TO DO:
+# Adapt to transfers from triplet to MLM
+# Adapt to transfers from biencoder to triplet
+# Adapt to transfers from triplet to aggregate prediction
+# Adapt to transfers from triplet to single-post prediction
 
-def convert_weights_for_huggingface(ckpt_path,
+def save_encoder_huggingface(ckpt_path,
                                     model=None,
                                     reddit_model_class=None,
                                     transformers_model_class=None, 
@@ -29,7 +34,7 @@ def convert_weights_for_huggingface(ckpt_path,
                                    transformers_weights)
     ckpt = tf.train.latest_checkpoint(ckpt_path)
     model.load_weights(ckpt)
-    model.encoder.save_pretrained(outpath) # only saves encoder weights
+    model.encoder.save_pretrained(outpath) # only saves encoder weights, could be refined
     return 'Model saved!'
 
 
