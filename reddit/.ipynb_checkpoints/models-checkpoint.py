@@ -146,20 +146,25 @@ class BatchTransformerForMLM(keras.Model):
                  name=None,
                  n_layers=None,
                  freeze_encoder=False,
-                 reset_head=False):
+                 reset_head=False,
+                 vocab_size=30522):
         
         # Set up id parameters        
         freeze_str = 'no' if not freeze_encoder else '_'.join(list(freeze_encoder))
         freeze_str = freeze_str + 'freeze' 
         reset_str = 'hreset' if reset_head else 'nhoreset'
         n_layers = n_layers or 6
+        weight_str = pretrained_weights or trained_encoder_weights or 'scratch'
+        weights_str = weight_str.replace('-', '_')
+        
         if name is None:
-            name = f'BatchTransformerForMLM-{freeze_str}-{reset_str}-{n_layers}layers'
+            name = f'BatchTransformerForMLM-{freeze_str}-{reset_str}-'
+                   f'{n_layers}layers-{weights_str}'
         super(BatchTransformerForMLM, self).__init__(name=name)
         
         # Initialize model
         if pretrained_weights is None:
-            config = transformer.config_class(vocab_size=30522, n_layers=n_layers)
+            config = transformer.config_class(vocab_size=vocab_size, n_layers=n_layers)
             mlm_model = transformer(config)
         else:
             mlm_model = transformer.from_pretrained(pretrained_weights) # convert weights
@@ -247,13 +252,16 @@ class BatchTransformerForContextMLM(keras.Model):
                  dims=768,
                  n_tokens=512,
                  aggregate='concatenate',
-                 n_contexts=10):
+                 n_contexts=10,
+                 vocab_size=30522):
         
         # Name parameters
         freeze_str = 'no' if not freeze_encoder else '_'.join(list(freeze_encoder))
         freeze_str = freeze_str + 'freeze' 
         reset_str = 'hreset' if reset_head else 'nhoreset'
-        n_layers = n_layers or 6 # check
+        n_layers = n_layers or 6
+        weight_str = pretrained_weights or trained_encoder_weights or 'scratch'
+        weights_str = weight_str.replace('-', '_')
         
         # Check dense layers
         if add_dense == 0:
@@ -271,7 +279,8 @@ class BatchTransformerForContextMLM(keras.Model):
             mtype = 'BatchTransformerForContextMLM'
             dense_args = f'dense{add_dense}-densedim{dims_str}'
             ctx_args = f'agg{aggregate}'
-            name = f'{mtype}-{freeze_str}-{reset_str}-{n_layers}layers-{dense_args}-{ctx_args}'
+            name = f'{mtype}-{freeze_str}-{reset_str}-{n_layers}layers-{dense_args}-'
+                   f'{weights_str}-{ctx_args}'
         super(BatchTransformerForContextMLM, self).__init__(name=name)
         
         # Some useful parameters
@@ -282,7 +291,8 @@ class BatchTransformerForContextMLM(keras.Model):
         
         # Initialize basic model components
         if pretrained_weights is None:
-            config = transformer.config_class(vocab_size=30522, n_layers=n_layers)
+            config = transformer.config_class(vocab_size=vocab_size, 
+                                              n_layers=n_layers)
             mlm_model = transformer(config)
         else:
             mlm_model = transformer.from_pretrained(pretrained_weights) # convert weights
@@ -337,7 +347,7 @@ class BatchTransformerForContextMLM(keras.Model):
     def _pool_context(self, hidden_state):
         ctx = tf.reduce_mean(hidden_state[:,1:,0,:],
                              axis=1, keepdims=True)
-        ctx = self.dense_normalizer(ctx)
+        ctx = self.context_normalizer(ctx)
         ctx = tf.expand_dims(ctx, axis=2)
         ctx = tf.repeat(ctx, self.n_contexts+1, axis=1)
         ctx = tf.repeat(ctx, self.n_tokens, axis=2)
@@ -378,20 +388,21 @@ class HierarchicalTransformerForContextMLM(keras.Model):
                  name=None,
                  n_layers=3,
                  n_tokens=512,
-                 n_contexts=10):
+                 n_contexts=10,
+                 vocab_size=30522):
         
         
         if name is None:
             mtype = 'HierarchicalTransformerForContextMLM'
             name = f'{mtype}-{n_layers}'
-        super(BatchTransformerForContextMLM, self).__init__(name=name)
+        super(HierarchicalTransformerForContextMLM, self).__init__(name=name)
         
         # Some useful parameters
         self.n_tokens = n_tokens
         self.output_signature = tf.float32
         
         # Create encoder
-        config = transformer.config_class(vocab_size=30522, n_layers=n_layers)
+        config = transformer.config_class(vocab_size=vocab_size, n_layers=n_layers)
         mlm_model = transformer(config)
         self.encoder = mlm_model.layers[0]
         self.encoder.trainable = True
@@ -456,8 +467,160 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         return logits
     
 
-    
-### ADD BIENCODER CLASS
+class BiencoderForContextMLM(keras.Model):
+    ''' Model class for masked language modeling using context
+        using standard transformers with aggregation
+    Args:
+        transformer: MLM model class from transformers library
+        pretrained_weights (str): path to model initialization weights or 
+            pretrained huggingface
+        trained_encoder_weights (str): path to encoder weights to load
+        trained_encoder_class (str): model class for encoder
+        name (str): identification string
+        n_layers (int): number of transformer layers for encoder (relevant 
+            if not loading a pretrained configurations)
+        freeze_encoder (list, False, or None): which layers of the encoder to 
+            freeze
+        reset_head (bool): whether to re-initialize the classification head
+        add_dense (int): number of additional dense layers to add 
+            between the encoder and the MLM head, after concatenating
+            aggregate context and target post.
+        dims (int): dimensionality of dense layers
+        n_tokens (int): number of tokens in sequence
+        aggregate (str): if aggregate is 'dense', if no additional dense layers 
+            are specified after concatenation it adds a converter layer.
+            If 'add', multiplies each dimension of the context by each
+                dimension of the token representation. 
+        n_contexts (int): number of contexts passed
+    '''
+    def __init__(self, 
+                 transformer,
+                 pretrained_token_encoder_weights,
+                 trained_token_encoder_weights=None,
+                 trained_token_encoder_class=None,
+                 name=None,
+                 n_layers_token_encoder=3,
+                 n_layers_context_encoder=3,
+                 freeze_token_encoder=False,
+                 add_dense=0,
+                 dims=768,
+                 n_tokens=512,
+                 aggregate='concatenate',
+                 n_contexts=10,
+                 vocab_size=30522):
+        
+        # Name parameters
+        freeze_str = 'no' if not freeze_encoder else '_'.join(list(freeze_encoder))
+        freeze_str = freeze_str + 'freeze' 
+        n_layers_token_encoder = n_layers_token_encoder or 6
+        n_layers_str = f'{n_layers_token_encoder}_{n_layers_context_encoder}'
+        weight_str = pretrained_token_encoder_weights or \
+                     trained_token_encoder_weights or \
+                     'scratch'
+        weights_str = weight_str.replace('-', '_')
+        
+        # Check dense layers
+        if add_dense == 0:
+            dims_str = 'none'
+        else:
+            if isinstance(dims, int):
+                dims = [dims] * add_dense       
+            elif isinstance(dims, list):
+                dims = [int(d) for d in dims]
+                if len(dims) != add_dense:
+                    raise ValueError('Length of dims must match add_dense')
+            dims_str = '_'.join([str(d) for d in dims])
+        
+        if name is None:
+            mtype = 'BiencoderForContextMLM'
+            dense_args = f'dense{add_dense}-densedim{dims_str}'
+            ctx_args = f'agg{aggregate}'
+            name = f'{mtype}-{freeze_str}-{n_layers_str}layers-{dense_args}-'
+                   f'{weights_str}-{ctx_args}'
+        super(BiencoderForContextMLM, self).__init__(name=name)
+        
+        # Some useful parameters
+        self.n_tokens = n_tokens
+        self.aggregate = aggregate
+        self.output_signature = tf.float32
+        self.n_contexts = n_contexts
+        
+        # Initialize basic model components
+        if pretrained_weights is None:
+            config_token_encoder = transformer.config_class(vocab_size=vocab_size, 
+                                                            n_layers=n_layers_token_encoder)
+            mlm_model = transformer(config)
+        else:
+            mlm_model = transformer.from_pretrained(pretrained_weights) # convert weights
+        if trained_encoder_weights and trained_encoder_class:
+            load_trained_encoder_weights(model=mlm_model, 
+                                         transformers_model_class=trained_encoder_class,
+                                         weights_path=trained_encoder_weights,
+                                         layer=0)
+        config_ctx_encoder = transformer.config_class(vocab_size=vocab_size,
+                                                      n_layers=n_layers_context_encoder)
+        self.token_encoder = mlm_model.layers[0]
+        self.vocab_dense = mlm_model.layers[1]
+        self.act = mlm_model.act
+        self.vocab_layernorm = mlm_model.layers[2]
+        self.vocab_projector = mlm_model.layers[-1]
+        self.vocab_size = mlm_model.vocab_size        
+        self.context_encoder = transformer(config_ctx_encoder).layers[0]
+
+        # Define aggregation module
+        if self.aggregate != 'attention':
+            # There could be dense here?
+            # Could add some dropouts
+            self.context_normalizer = LayerNormalization(epsilon=1e-12)
+            if self.aggregate = 'concatenate':
+                self.agg_layer = Concatenate(axis=-1)
+            else:
+                self.agg_layer = Add()
+            self.aggregate_dense = keras.Sequential([Dense(units=dims[i], 
+                                                           activation='linear')
+                                                     for i in range(add_dense)] + 
+                                                    [Dense(units=768, 
+                                                           activation='relu')])
+            self.aggregate_normalizer = LayerNormalization(epsilon=1e-12)
+        else:
+            self.aggregate_attention = MultiHeadAttention(num_heads=6,
+                                                          key_dim=768)
+            # Anything here?
+            
+
+        # Freeze and reset stuff
+        if not freeze_token_encoder:
+            self.encoder.trainable = True
+        else:
+            for fl in freeze_token_encoder:
+                self.token_encoder._layers[1]._layers[0][int(fl)]._trainable = False
+            self.token_encoder._layers[0]._trainable = False # freeze embeddings too
+        if reset_head:
+            initializer = get_initializer()
+            for layer in [self.vocab_dense, 
+                          self.vocab_layernorm, 
+                          self.vocab_projector]:
+                layer.set_weights([initializer(w.shape) 
+                                   for w in layer.weights])
+
+
+    def _encode_batch(self, example):
+        ctx = self.context_encoder(input_ids=example['input_ids'][:,1:,:],
+                                          attention_mask=example['attention_mask'][:,1:,:])
+        return ctx.last_hidden_state
+
+    def call(self, input):
+        target = self.encoder(input_ids=input['input_ids'][:,0,:], 
+                              attention_mask=input['attention_mask'][:,0,:]).last_hidden_state
+        contexts = tf.vectorized_map(self._encode_batch, elems=input)
+        contexts = hidden_states[:,:,0,:] # should this be averaged?
+        out = self._aggregate(target, contexts)
+        # out = self.added_dense_layer(out)
+        out = self.vocab_dense(out)
+        out = self.act(out)
+        out = self.vocab_layernorm(out)
+        logits = self.vocab_projector(out)
+        return logits
 
     
 class BatchTransformerForAggregates(keras.Model):
