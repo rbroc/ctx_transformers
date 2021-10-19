@@ -318,8 +318,8 @@ class BatchTransformerForContextMLM(keras.Model):
             self.agg_layer = Add()
         self.aggregate_dense = keras.Sequential([Dense(units=dims[i], 
                                                            activation='linear')
-                                                     for i in range(add_dense)] + 
-                                                     [Dense(units=768, activation='relu')])
+                                                 for i in range(add_dense)] + 
+                                                 [Dense(units=768, activation='relu')])
         self.aggregate_normalizer = LayerNormalization(epsilon=1e-12)
         
         # Freeze and reset stuff
@@ -356,7 +356,7 @@ class BatchTransformerForContextMLM(keras.Model):
     
     def call(self, input):
         hidden_state = tf.vectorized_map(self._encode_batch, 
-                                             elems=input)
+                                         elems=input)
         ctx = self._pool_context(self, hidden_state)
         aggregated = self.agg_layer([hidden_state, ctx])
         aggregated = self.aggregate_dense(aggregated)
@@ -515,8 +515,7 @@ class BiencoderForContextMLM(keras.Model):
         n_layers_token_encoder = n_layers_token_encoder or 6
         n_layers_str = f'{n_layers_token_encoder}_{n_layers_context_encoder}'
         weight_str = pretrained_token_encoder_weights or \
-                     trained_token_encoder_weights or \
-                     'scratch'
+                     trained_token_encoder_weights or 'scratch'
         weights_str = weight_str.replace('-', '_')
         
         # Check dense layers
@@ -551,7 +550,7 @@ class BiencoderForContextMLM(keras.Model):
                                                             n_layers=n_layers_token_encoder)
             mlm_model = transformer(config)
         else:
-            mlm_model = transformer.from_pretrained(pretrained_weights) # convert weights
+            mlm_model = transformer.from_pretrained(pretrained_weights)
         if trained_encoder_weights and trained_encoder_class:
             load_trained_encoder_weights(model=mlm_model, 
                                          transformers_model_class=trained_encoder_class,
@@ -569,8 +568,6 @@ class BiencoderForContextMLM(keras.Model):
 
         # Define aggregation module
         if self.aggregate != 'attention':
-            # There could be dense here?
-            # Could add some dropouts
             self.context_normalizer = LayerNormalization(epsilon=1e-12)
             if self.aggregate = 'concatenate':
                 self.agg_layer = Concatenate(axis=-1)
@@ -583,11 +580,12 @@ class BiencoderForContextMLM(keras.Model):
                                                            activation='relu')])
             self.aggregate_normalizer = LayerNormalization(epsilon=1e-12)
         else:
-            self.aggregate_attention = MultiHeadAttention(num_heads=6,
-                                                          key_dim=768)
-            # Anything here?
+            self.agg_layer = MultiHeadAttention(num_heads=6,
+                                                key_dim=768) # training stops here
+            self.attention_normalizer = LayerNormalization(epsilon=1e-12) # takes out + target
+            self.post_attention_ffn = Dense(units=768, activation='relu')
+            self.pre_head_normalizer = LayerNormalization(epsilon=1e-12) # also takes output of norm
             
-
         # Freeze and reset stuff
         if not freeze_token_encoder:
             self.encoder.trainable = True
@@ -602,24 +600,44 @@ class BiencoderForContextMLM(keras.Model):
                           self.vocab_projector]:
                 layer.set_weights([initializer(w.shape) 
                                    for w in layer.weights])
+    
 
-
-    def _encode_batch(self, example):
+    def _run_context_encoder(self, example):
         ctx = self.context_encoder(input_ids=example['input_ids'][:,1:,:],
-                                          attention_mask=example['attention_mask'][:,1:,:])
+                                   attention_mask=example['attention_mask'][:,1:,:])
         return ctx.last_hidden_state
-
+    
+    def _pool_context(self, contexts):
+        contexts = tf.reduce_mean(contexts, axis=1, keepdims=True) # 1,1,768
+        contexts = self.context_normalizer(contexts) # 1,1,768
+        contexts = tf.repeat(contexts, self.n_tokens, axis=1) # 1,512,768
+        return contexts
+    
+    def _aggregate(self, target, contexts):
+        if self.aggregate == 'attention':
+            att_out = self.agg_layer(target, contexts)
+            att_out = self.attention_normalizer(att_out + target)
+            att_ffn = self.post_attention_ffn(att_out)
+            out = self.pre_head_normalizer(att_ffn + att_out)
+        else:
+            contexts = self._pool_context(contexts) #1,512,768
+            agg = self.agg_layer([target, contexts]) #1,512,768
+            agg_ffn = self.aggregate_dense(agg) #1,512,768
+            out = self.aggregate_normalizer(agg_ffn+target) # correct?
+        return out
+    
+            
     def call(self, input):
         target = self.encoder(input_ids=input['input_ids'][:,0,:], 
-                              attention_mask=input['attention_mask'][:,0,:]).last_hidden_state
-        contexts = tf.vectorized_map(self._encode_batch, elems=input)
-        contexts = hidden_states[:,:,0,:] # should this be averaged?
-        out = self._aggregate(target, contexts)
-        # out = self.added_dense_layer(out)
-        out = self.vocab_dense(out)
-        out = self.act(out)
-        out = self.vocab_layernorm(out)
-        logits = self.vocab_projector(out)
+                              attention_mask=input['attention_mask'][:,0,:]).last_hidden_state # 1,512,768
+        contexts = tf.vectorized_map(self._run_context_encoder, 
+                                     elems=input) # 1,10,512,768
+        contexts = hidden_states[:,:,0,:] #1,10,768
+        target = self._aggregate(target, contexts)
+        target = self.vocab_dense(target)
+        target = self.act(target)
+        target = self.vocab_layernorm(target)
+        logits = self.vocab_projector(target)
         return logits
 
     
