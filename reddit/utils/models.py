@@ -3,11 +3,6 @@ from tensorflow import keras
 from transformers import TFDistilBertModel
 from pathlib import Path
 
-# TO DO:
-# Adapt to transfers from triplet to MLM
-# Adapt to transfers from biencoder to triplet
-# Adapt to transfers from triplet to aggregate prediction
-# Adapt to transfers from triplet to single-post prediction
 
 def make_mlm_model_from_params(transformer,
                                pretrained_weights,  
@@ -117,4 +112,9 @@ def load_weights_from_huggingface(model,
         model.set_weights(transformers_model_class.from_pretrained(weights_path)\
                                                   .get_weights())
         
-    
+        
+# TO DO:
+# Adapt to transfers from triplet to MLM
+# Adapt to transfers from biencoder to triplet
+# Adapt to transfers from triplet to aggregate prediction
+# Adapt to transfers from triplet to single-post predictions
