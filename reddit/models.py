@@ -516,7 +516,6 @@ class BatchTransformerForAggregates(keras.Model):
         self.head = Dense(1, activation='linear')
 
     def _encode_batch(self, example):
-        
         output = self.encoder(input_ids=example['input_ids'],
                               attention_mask=example['attention_mask'])
         encoding = output.last_hidden_state[:,0,:]
