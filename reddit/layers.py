@@ -115,7 +115,7 @@ class HierarchicalAttentionAggregator(keras.layers.Layer):
     def __init__(self, n_contexts, n_tokens, relu_dims=768):
         super(HierarchicalContextAttention, self).__init__()
         self.ctx_transf = TFMultiHeadSelfAttention(config, name="attention")
-        self.post_transf_dense = Dense(units=768, activation='relu')
+        self.post_transf_dense = Dense(units=relu_dims, activation='relu')
         self.post_transf_normalizer = LayerNormalization(epsilon=1e-12)
         self.att_mask = tf.constant(1, shape=[1,n_contexts+1])
         self.padding_matrix = [[0,0], [0,n_tokens-1], [0,0]]
