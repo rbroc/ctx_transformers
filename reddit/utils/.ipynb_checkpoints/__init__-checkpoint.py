@@ -8,7 +8,10 @@ from .datasets import (split_dataset,
 from .compute import (compute_mean_pairwise_distance,
                       average_encodings)
 from .models import (save_encoder_huggingface,
-                     load_weights_from_huggingface)
+                     load_weights_from_huggingface, 
+                     dense_to_str, 
+                     freeze_encoder,
+                     make_mlm_model_from_params)
 from .transforms import (triplet_transform, 
                          mlm_transform, agg_transform)
 from .logging import LOG_DICT, META_DICT, PBAR_DICT
@@ -23,8 +26,11 @@ __all__ = ['save_tfrecord',
            'prepare_agg',
            'average_encodings', 
            'compute_mean_pairwise_distance',
-           'convert_weights_for_huggingface',
+           'save_encoder_huggingface',
            'load_weights_from_huggingface',
+           'dense_to_str',
+           'freeze_encoder',
+           'make_mlm_model_from_params',
            'triplet_transform', 
            'mlm_transform',
            'agg_transform',
