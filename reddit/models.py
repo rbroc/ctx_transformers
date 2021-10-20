@@ -13,7 +13,9 @@ from reddit.layers import (BatchTransformerContextAggregator,
                            HierarchicalContextAttention,
                            BatchTransformerContextPooler,
                            BiencoderContextPooler,
-                           MLMHead)
+                           MLMHead, 
+                           SimpleCompressor, 
+                           VAECompressor)
 
 
 class BatchTransformer(keras.Model):
@@ -25,12 +27,23 @@ class BatchTransformer(keras.Model):
             path_to_weights (str): path to pretrained weights
             name (str): model name. If not provided, uses path_to_weights
             trainable (bool): whether to freeze weights
+            output_attentions (bool): if attentions should be added
+                to outputs (useful for diagnosing but not much more)
+            compress_to (int): dimensionality for compression
+            compress_mode (str): if compress_to is defined, can be
+                'dense' for linear compression or 'vae' for auto-encoder
+                compression
     '''
     def __init__(self, transformer, path_to_weights,
-                 name=None, trainable=True, 
-                 output_attentions=False):
+                 name=None, trainable=True,
+                 output_attentions=False, 
+                 compress_to=None,
+                 compress_mode=None,
+                 intermediate_size=None):
         if name is None:
-            name = f'BatchTransformer-{path_to_weights}'
+            cto_str = str(compress_to) + '_' or 'no'
+            cmode_str = compress_mode or ''
+            name = f'BatchTransformer-{path_to_weights}-{cto_str}{cmode_str}_compress'
         super(BatchTransformer, self).__init__(name=name)
         self.path_to_weights = path_to_weights
         self.encoder = transformer.from_pretrained(path_to_weights, 
@@ -38,6 +51,15 @@ class BatchTransformer(keras.Model):
         self.trainable = trainable
         self.output_signature = tf.float32
         self.output_attentions = output_attentions
+        if compress_to:
+            if compress_mode == 'dense':
+                self.compressor = SimpleCompressor(compress_to, 
+                                                   intermediate_size)
+            elif compress_mode == 'vae':
+                self.compressor = VAECompressor(compress_to, 
+                                                intermediate_size)
+        else:
+            self.compressor = None
 
     def _encode_batch(self, example):
         mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
@@ -57,47 +79,12 @@ class BatchTransformer(keras.Model):
     def call(self, input):
         encodings, attentions = tf.vectorized_map(self._encode_batch, 
                                                   elems=input)
+        if self.compressor:
+            encodings = self.compressor(encodings)
         if self.output_attentions:
             return encodings, attentions
         else:
             return encodings
-
-
-class BatchTransformerClassifier(BatchTransformer):
-    def _encode_batch(self, example):
-        mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
-                             axis=-1, keepdims=True) # accommodates for padding
-        mask = tf.cast(mask, tf.float32)
-        mask = tf.abs(tf.subtract(mask, 1.))
-        output = self.encoder(
-                              input_ids=example['input_ids'],
-                              attention_mask=example['attention_mask']
-                              )
-        encoding = output.last_hidden_state[:,0,:]
-        attentions = output.attentions if self.output_attentions else None
-        masked_encoding = tf.multiply(encoding, mask)
-        return masked_encoding, attentions
-
-    
-    def call(self, input):
-        encodings, attentions = tf.vectorized_map(self._encode_batch, 
-                                                  elems=input)
-        if self.output_attentions:
-            return encodings, attentions
-        else:
-            return encodings
-
-# To dos:
-# Add classification loss
-    # Look up siamese network
-# Make classification datasets?
-# Add support for head compression
-    # Different sizes
-    # Variational Autoencoder
-# Add classification loss
-
-# Aggregates:
-# Add model to predict single user metrics?
 
 
 class BatchTransformerFFN(BatchTransformer):
@@ -259,8 +246,8 @@ class BatchTransformerForContextMLM(keras.Model):
                  n_layers=None,
                  freeze_encoder=False,
                  reset_head=False,
-                 add_dense=0,
-                 dims=768,
+                 add_dense=None,
+                 dims=None,
                  n_tokens=512,
                  aggregate='concatenate',
                  n_contexts=10,
@@ -420,8 +407,8 @@ class BiencoderForContextMLM(keras.Model):
                  n_layers_token_encoder=3,
                  n_layers_context_encoder=3,
                  freeze_token_encoder=False,
-                 add_dense=0,
-                 dims=768,
+                 add_dense=None,
+                 dims=None,
                  n_tokens=512,
                  aggregate='concat',
                  n_contexts=10,
