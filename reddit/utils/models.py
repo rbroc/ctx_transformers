@@ -41,18 +41,17 @@ def freeze_encoder_weights(encoder, freeze_param):
         for fl in freeze_param:
             encoder._layers[1]._layers[0][int(fl)]._trainable = False
         encoder._layers[0]._trainable = False # freeze embeddings
-        
 
 
 def dense_to_str(add_dense, dims):
     ''' Converts info on # dense layers to add and dimensions for 
         each to string (used for model ids)
     '''
-    if add_dense == 0:
-        dims_str = 'none'
+    if not dims:
+        dims_str = '0_dense'
     else:
         assert len(dims) == add_dense
-        dims_str = '_'.join([str(d) for d in dims])
+        dims_str = '_'.join([str(d) for d in dims]) + '_dense'
     return dims_str
 
 
