@@ -4,7 +4,7 @@ from reddit.utils import (load_tfrecord,
 from reddit.models import BatchTransformer
 from reddit.losses import TripletLossBase
 from reddit.training import Trainer
-from transformers import TFDistilBertModel, DistilBertModel
+from transformers import TFDistilBertModel
 import glob
 from pathlib import Path
 import tensorflow as tf
@@ -19,7 +19,7 @@ parser.add_argument('--dataset-name', type=str, default=None,
 parser.add_argument('--log-path', type=str, default=None,
                     help='Path for metrics and checkpoints within ../logs')
 parser.add_argument('--n-anchor', type=int, default=10,
-                    help='Number of anchor posts')
+                    help='Number of anchor posts') # this is max
 parser.add_argument('--n-pos', type=int, default=1,
                     help='Number of positive examples')
 parser.add_argument('--n-neg', type=int, default=1,
@@ -96,10 +96,10 @@ def _run_training(log_path, dataset_name, n_anchor, n_pos, n_neg,
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        #optimizer = create_optimizer(train_params['optimizer_learning_rate'],
-        #                             num_train_steps=train_params['optimizer_n_train_steps'], 
-        #                             num_warmup_steps=train_params['optimizer_n_warmup_steps'])
-        optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
+        optimizer = create_optimizer(train_params['optimizer_learning_rate'],
+                                     num_train_steps=train_params['optimizer_n_train_steps'], 
+                                     num_warmup_steps=train_params['optimizer_n_warmup_steps'])
+        #optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5)
 	model = BatchTransformer(train_params['model'], 
                                  train_params['weights'])
         loss = TripletLossBase(train_params['loss_margin'],

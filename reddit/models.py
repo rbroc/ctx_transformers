@@ -21,7 +21,7 @@ class BatchTransformer(keras.Model):
         support 3D (batch, n_sentences, n_tokens) inputs.
         Args:
             transformer (model): model object from huggingface
-                transformers (e.g. TFDistilBertMode)
+                transformers (e.g. TFDistilBertModel)
             path_to_weights (str): path to pretrained weights
             name (str): model name. If not provided, uses path_to_weights
             trainable (bool): whether to freeze weights
@@ -39,7 +39,6 @@ class BatchTransformer(keras.Model):
         self.output_signature = tf.float32
         self.output_attentions = output_attentions
 
-        
     def _encode_batch(self, example):
         mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
                              axis=-1, keepdims=True)
@@ -64,11 +63,48 @@ class BatchTransformer(keras.Model):
             return encodings
 
 
+class BatchTransformerClassifier(BatchTransformer):
+    def _encode_batch(self, example):
+        mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
+                             axis=-1, keepdims=True) # accommodates for padding
+        mask = tf.cast(mask, tf.float32)
+        mask = tf.abs(tf.subtract(mask, 1.))
+        output = self.encoder(
+                              input_ids=example['input_ids'],
+                              attention_mask=example['attention_mask']
+                              )
+        encoding = output.last_hidden_state[:,0,:]
+        attentions = output.attentions if self.output_attentions else None
+        masked_encoding = tf.multiply(encoding, mask)
+        return masked_encoding, attentions
+
+    
+    def call(self, input):
+        encodings, attentions = tf.vectorized_map(self._encode_batch, 
+                                                  elems=input)
+        if self.output_attentions:
+            return encodings, attentions
+        else:
+            return encodings
+
+# To dos:
+# Add classification loss
+    # Look up siamese network
+# Make classification datasets?
+# Add support for head compression
+    # Different sizes
+    # Variational Autoencoder
+# Add classification loss
+
+# Aggregates:
+# Add model to predict single user metrics?
+
+
 class BatchTransformerFFN(BatchTransformer):
     ''' Batch transformer with added dense layers
     Args:
         transformer (model): model object from huggingface
-            transformers (e.g. TFDistilBertMode) for batch
+            transformers (e.g. TFDistilBertModel) for batch
             transformer
         path_to_weights (str): path to pretrained weights
         n_dense (int): number of dense layers to add on top

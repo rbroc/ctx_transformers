@@ -6,7 +6,8 @@ from .datasets import (split_dataset,
                        remove_short_targets,
                        prepare_agg)
 from .compute import (compute_mean_pairwise_distance,
-                      average_encodings)
+                      average_encodings,
+                      sampling_vae)
 from .models import (save_encoder_huggingface,
                      load_weights_from_huggingface, 
                      dense_to_str, 
@@ -25,6 +26,7 @@ __all__ = ['save_tfrecord',
            'remove_short_targets',
            'prepare_agg',
            'average_encodings', 
+           'sampling_vae',
            'compute_mean_pairwise_distance',
            'save_encoder_huggingface',
            'load_weights_from_huggingface',

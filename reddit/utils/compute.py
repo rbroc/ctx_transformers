@@ -1,11 +1,20 @@
 import tensorflow as tf
+from keras import backend as K
+
+
+def sampling_vae(args):
+    ''' Sampling function for VAE'''
+    z_mean, z_log_sigma = args
+    epsilon = K.random_normal(shape=(K.shape(z_mean)[0], latent_dim),
+                              mean=0., stddev=0.1)
+    return z_mean + K.exp(z_log_sigma) * epsilon
 
 
 def average_encodings(encodings):
     ''' Averages encodings along feature dimension
     Args:
         encodings (tf.Tensor): tensor of anchor encodings
-            (of shape n_posts x n_dims)
+            (of shape bs x n_posts x n_dims)
     '''
     out = tf.reduce_sum(encodings, axis=1, keepdims=True)
     mask = tf.reduce_all(tf.equal(encodings, 0), axis=-1, 

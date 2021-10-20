@@ -39,20 +39,26 @@ class TripletLossBase(TripletLoss):
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
     '''
-    def __init__(self, margin, n_neg=1, n_pos=1, 
+    def __init__(self, margin, n_neg=1, n_pos=1, n_anc=None, 
                  custom_loss_fn=None, name=None):
         super().__init__(margin, custom_loss_fn, name)
         self.n_neg = n_neg
         self.n_pos = n_pos
+        self.n_anc = n_anc
     
     def __call__(self, encodings):
         ''' Computes loss. Returns loss, metric and encodings distances 
         Args:
             encodings (tf.Tensor): posts encodings
         '''       
-        n_enc = encodings[:, :self.n_neg, :]
-        p_enc = encodings[:, self.n_neg:self.n_neg+self.n_pos, :]
-        a_enc = encodings[:, self.n_neg+self.n_pos:, :]
+        neg_idx = self.n_neg
+        pos_idx = neg_idx + self.n_pos
+        n_enc = encodings[:, :neg_idx, :]
+        p_enc = encodings[:, neg_idx:pos_idx, :]
+        if self.n_anc:
+            a_enc = encodings[:, pos_idx:pos_idx+self.n_anc, :]
+        else:
+            a_enc = encodings[:, pos_idx:, :]
         dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
         avg_a_enc = tf.squeeze(average_encodings(a_enc), axis=1)
         avg_n_enc = tf.squeeze(average_encodings(n_enc), axis=1)
@@ -88,6 +94,32 @@ class TripletLossFFN(TripletLoss):
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg]]
         return outs
+
+
+class TripletClassificationLoss:
+    def __init__(self, n_posts, name=None):
+        self.n_posts = n_posts
+        super().__init__(n_posts, name)
+    
+    def __call__(self, encodings, label):
+        ''' Computes loss. Returns loss, metric and encodings distances 
+        Args:
+            encodings (tf.Tensor): posts encodings
+            labe (tf.Tensor): bs x 1 get whether correct
+        '''       
+        enc_1 = encodings[:, :self.n_posts, :]
+        enc_2 = encodings[:, self.n_posts:self.n_posts*2, :]
+        avg_enc_1 = tf.reduce_mean(enc_1, axis=1) # bs x 768
+        avg_enc_2 = tf.reduce_mean(enc_2, axis=1) # bs x 768
+        # Compute dot product, distance or add dense layer?
+            # Could it be done with margin? - Look up literature
+        # Compare with label to get cross-entropy
+        # Return loss, metric (whether it's the same
+        
+        outs = [tf.reduce_mean(o, axis=0) 
+                for o in [loss, metric, dist]]
+        return outs
+
 
     
 class MLMLoss:

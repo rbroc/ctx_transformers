@@ -47,7 +47,6 @@ class Trainer:
                  log_every=100,
                  start_epoch=0,
                  ds_type='triplet',
-                 mlm_type=None,
                  checkpoint_device=None,
                  log_path='..',
                  eval_before_training=True,
