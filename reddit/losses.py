@@ -1,3 +1,4 @@
+from re import L
 import tensorflow as tf
 from tensorflow import keras
 from reddit.utils import (average_encodings, 
@@ -94,32 +95,6 @@ class TripletLossFFN(TripletLoss):
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg]]
         return outs
-
-
-class TripletClassificationLoss:
-    def __init__(self, n_posts, name=None):
-        self.n_posts = n_posts
-        super().__init__(n_posts, name)
-    
-    def __call__(self, encodings, label):
-        ''' Computes loss. Returns loss, metric and encodings distances 
-        Args:
-            encodings (tf.Tensor): posts encodings
-            labe (tf.Tensor): bs x 1 get whether correct
-        '''       
-        enc_1 = encodings[:, :self.n_posts, :]
-        enc_2 = encodings[:, self.n_posts:self.n_posts*2, :]
-        avg_enc_1 = tf.reduce_mean(enc_1, axis=1) # bs x 768
-        avg_enc_2 = tf.reduce_mean(enc_2, axis=1) # bs x 768
-        # Compute dot product, distance or add dense layer?
-            # Could it be done with margin? - Look up literature
-        # Compare with label to get cross-entropy
-        # Return loss, metric (whether it's the same
-        
-        outs = [tf.reduce_mean(o, axis=0) 
-                for o in [loss, metric, dist]]
-        return outs
-
 
     
 class MLMLoss:
