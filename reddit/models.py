@@ -1,19 +1,18 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import (Dense,
-                                     Concatenate)
-from reddit.utils import (average_encodings, 
-                          load_weights_from_huggingface, 
+                                     Concatenate, 
+                                     Lambda)
+from reddit.utils import (average_encodings,
                           dense_to_str, 
-                          freeze_encoder,
+                          freeze_encoder_weights,
                           make_mlm_model_from_params)
-from transformers.modeling_tf_utils import get_initializer
-from transformers import DistilBertConfig
 from reddit.layers import (BatchTransformerContextAggregator,
                            BiencoderSimpleAggregator,
                            BiencoderAttentionAggregator,
                            HierarchicalContextAttention,
                            BatchTransformerContextPooler,
+                           BiencoderContextPooler,
                            MLMHead)
 
 
@@ -161,26 +160,19 @@ class BatchTransformerForMLM(keras.Model):
         weights_str = weight_str.replace('-', '_')
         
         if name is None:
-            name = f'BatchTransformerForMLM-{freeze_str}-{reset_str}-'
-                   f'{n_layers}layers-{weights_str}'
+            name = f'BatchTransformerForMLM-{freeze_str}-{reset_str}-{n_layers}layers-{weights_str}'
         super(BatchTransformerForMLM, self).__init__(name=name)
         
         # Initialize model
-        if pretrained_weights is None:
-            config = transformer.config_class(vocab_size=vocab_size, n_layers=n_layers)
-            mlm_model = transformer(config)
-        else:
-            mlm_model = transformer.from_pretrained(pretrained_weights) # convert weights
-        if trained_encoder_weights and trained_encoder_class:
-            load_trained_encoder_weights(model=mlm_model, 
-                                         transformers_model_class=trained_encoder_class,
-                                         weights_path=trained_encoder_weights,
-                                         layer=0)
-        
-        # Set up components
+        mlm_model = make_mlm_model_from_params(transformer,
+                                               pretrained_weights,
+                                               vocab_size,
+                                               n_layers,
+                                               trained_encoder_weights,
+                                               trained_encoder_class)
         self.encoder = mlm_model.layers[0]
         self.mlm_head = MLMHead(mlm_model, reset=reset_head)
-        freeze_encoder(self.encoder, freeze_encoder)
+        freeze_encoder_weights(self.encoder, freeze_encoder)
         self.output_signature = tf.float32
         
     
@@ -245,13 +237,13 @@ class BatchTransformerForContextMLM(keras.Model):
         n_layers = n_layers or 6
         weight_str = pretrained_weights or trained_encoder_weights or 'scratch'
         weights_str = weight_str.replace('-', '_')
-        dims_str = dense_to_string(add_dense, dims)
+        dims_str = dense_to_str(add_dense, dims)
         if name is None:
             mtype = 'BatchTransformerForContextMLM'
             dense_args = f'dense{add_dense}-densedim{dims_str}'
             ctx_args = f'agg{aggregate}'
-            name = f'{mtype}-{freeze_str}-{reset_str}-{n_layers}layers-{dense_args}-'
-                   f'{weights_str}-{ctx_args}'
+            name = f'{mtype}-{freeze_str}-{reset_str}-{n_layers}layers' \
+                   f'-{dense_args}-{weights_str}-{ctx_args}'
         super(BatchTransformerForContextMLM, self).__init__(name=name)
         
         # Some useful parameters
@@ -268,7 +260,7 @@ class BatchTransformerForContextMLM(keras.Model):
                                                trained_encoder_weights,
                                                trained_encoder_class)
         self.encoder = mlm_model.layers[0]
-        freeze_encoder(self.encoder, freeze_encoder)
+        freeze_encoder_weights(self.encoder, freeze_encoder)
         self.mlm_head = MLMHead(mlm_model, reset=reset_head)
         self.context_pooler = BatchTransformerContextPooler()
         self.aggregator = BatchTransformerContextAggregator(agg_fn=self.aggregate, 
@@ -323,6 +315,7 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         
         # Some useful parameters
         self.n_tokens = n_tokens
+        self.n_contexts = n_contexts
         self.output_signature = tf.float32
         
         # Define components
@@ -399,20 +392,20 @@ class BiencoderForContextMLM(keras.Model):
                  vocab_size=30522):
         
         # Name parameters
-        freeze_str = 'no' if not freeze_encoder else '_'.join(list(freeze_encoder))
+        freeze_str = 'no' if not freeze_token_encoder else '_'.join(list(freeze_token_encoder))
         freeze_str = freeze_str + 'freeze' 
         n_layers_token_encoder = n_layers_token_encoder or 6
         n_layers_str = f'{n_layers_token_encoder}_{n_layers_context_encoder}'
         weight_str = pretrained_token_encoder_weights or \
                      trained_token_encoder_weights or 'scratch'
         weights_str = weight_str.replace('-', '_')
-        dims_str = dense_to_string(add_dense, dims)
+        dims_str = dense_to_str(add_dense, dims)
         if name is None:
             mtype = 'BiencoderForContextMLM'
             dense_args = f'dense{add_dense}-densedim{dims_str}'
             ctx_args = f'agg{aggregate}'
-            name = f'{mtype}-{freeze_str}-{n_layers_str}layers-{dense_args}-'
-                   f'{weights_str}-{ctx_args}'
+            name = f'{mtype}-{freeze_str}-{n_layers_str}layers-{dense_args}' \
+                   f'-{weights_str}-{ctx_args}'
         super(BiencoderForContextMLM, self).__init__(name=name)
         
         # Some useful parameters
@@ -423,14 +416,14 @@ class BiencoderForContextMLM(keras.Model):
         
         # Define components
         mlm_model = make_mlm_model_from_params(transformer,
-                                               pretrained_weights,
+                                               pretrained_token_encoder_weights,
                                                vocab_size,
                                                n_layers_token_encoder,
-                                               trained_encoder_weights,
-                                               trained_encoder_class)
+                                               trained_token_encoder_weights,
+                                               trained_token_encoder_class)
         self.token_encoder = mlm_model.layers[0]
-        freeze_encoder(self.token_encoder, freeze_token_encoder)
-        self.mlm_head = MLMHead(mlm_model, reset=reset_head)
+        freeze_encoder_weights(self.token_encoder, freeze_token_encoder)
+        self.mlm_head = MLMHead(mlm_model, reset=True)
         config_ctx_encoder = transformer.config_class(vocab_size=vocab_size,
                                                       n_layers=n_layers_context_encoder)
         self.context_encoder = transformer(config_ctx_encoder).layers[0]
@@ -454,8 +447,7 @@ class BiencoderForContextMLM(keras.Model):
     def call(self, input):
         target = self.encoder(input_ids=input['input_ids'][:,0,:], 
                               attention_mask=input['attention_mask'][:,0,:]).last_hidden_state
-        contexts = tf.vectorized_map(self._encode_context, elems=input)
-        contexts = hidden_states[:,:,0,:]
+        contexts = tf.vectorized_map(self._encode_context, elems=input)[:,:,0,:]
         if self.aggregate != 'attention':
             contexts = self.context_pooler(contexts, self.n_tokens)
         target = self.aggregator(target, contexts)

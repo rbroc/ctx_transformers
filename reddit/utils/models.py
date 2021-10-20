@@ -27,14 +27,14 @@ def make_mlm_model_from_params(transformer,
     else:
         mlm_model = transformer.from_pretrained(pretrained_weights)
     if trained_encoder_weights and trained_encoder_class:
-        load_trained_encoder_weights(model=mlm_model, 
-                                     transformers_model_class=trained_encoder_class,
-                                     weights_path=trained_encoder_weights,
-                                     layer=0)
+        load_weights_from_huggingface(model=mlm_model, 
+                                      transformers_model_class=trained_encoder_class,
+                                      weights_path=trained_encoder_weights,
+                                      layer=0)
     return mlm_model
 
 
-def freeze_encoder(encoder, freeze_param):
+def freeze_encoder_weights(encoder, freeze_param):
     ''' Freezes encoder layer, given an encoder and a list of 
         layers to freeze (no freezing if freeze_param is False or None) '''
     if not freeze_param:
@@ -62,7 +62,7 @@ def save_encoder_huggingface(ckpt_path,
                              model=None,
                              reddit_model_class=None,
                              transformers_model_class=None, 
-                             transformer_weights=None,
+                             transformers_weights=None,
                              outpath=None):
     ''' Saves weights in format compatible with huggingface 
         transformers' from_pretrained method
