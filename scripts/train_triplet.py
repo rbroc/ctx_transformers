@@ -1,6 +1,7 @@
 from reddit.utils import (load_tfrecord,
                           split_dataset,
-                          triplet_transform)
+                          triplet_transform, 
+                          filter_triplet_by_n_anchors)
 from reddit.models import (BatchTransformer, BatchTransformerFFN)
 from reddit.losses import (TripletLossBase, TripletLossFFN)
 from reddit.training import Trainer
@@ -28,8 +29,7 @@ parser.add_argument('--per-replica-batch-size', type=int, default=20,
 parser.add_argument('--dataset-size', type=int, default=200000,
                     help='Number of examples in dataset (train + val)')
 parser.add_argument('--n-epochs', type=int, default=3,
-                    help='Number of epochs')
-                    help='Number of negative examples')            
+                    help='Number of epochs')        
 parser.add_argument('--start-epoch', type=int, default=0,
                     help='Epoch to start from')
 parser.add_argument('--update-every', type=int, default=16,
@@ -127,6 +127,7 @@ def _run_training(log_path,
     pattern = str(DATA_PATH / dataset_name / 'train'/ 'batch*')
     fs_train = glob.glob(pattern)
     ds = load_tfrecord(fs_train, deterministic=True, ds_type='triplet')
+    # 
     ds_train, ds_val, _ = split_dataset(ds, 
                                         size=dataset_size, 
                                         perc_train=.8, 
@@ -135,8 +136,10 @@ def _run_training(log_path,
     
     # Compute number of batches
     global_batch_size = len(logical_gpus) * per_replica_batch_size
-    n_train_examples = len([e for e in ds_train]) # add filtering by n_anchors?
-    n_test_examples = len([e for e in ds_val]) # add filtering by n_anchors?
+    n_train_examples = len([e for e in ds_train 
+                            if filter_triplet_by_n_anchors(e, n_anchor)])
+    n_test_examples = len([e for e in ds_val 
+                           if filter_triplet_by_n_anchors(e, n_anchor)])
     print(f'{n_train_examples}, n test examples: {n_test_examples}')
     n_train_steps = int(n_train_examples / global_batch_size)
     n_test_steps = int(n_test_examples / global_batch_size)
@@ -148,7 +151,7 @@ def _run_training(log_path,
                                      num_warmup_steps=n_train_steps / 10) # allow edit
         
         if triplet_type == 'standard':
-            model = model_class(transformer=TFDistilBert,
+            model = model_class(transformer=TFDistilBertModel,
                                 pretrained_weights=pretrained_weights,
                                 trainable=True,
                                 output_attentions=False,
@@ -157,7 +160,7 @@ def _run_training(log_path,
                                 intermediate_size=intermediate_size,
                                 pooling=pooling)
         elif triplet_type == 'ffn':
-            model = model_class(transformer=TFDistilBert,
+            model = model_class(transformer=TFDistilBertModel,
                                 pretrained_weights=pretrained_weights,
                                 n_dense=n_dense,
                                 dims=dims,
@@ -192,8 +195,9 @@ def _run_training(log_path,
                 labels=False, 
                 pad_to=[pad_anchor, 
                         n_pos, 
-                        n_neg]
-                batch_size=global_batch_size)
+                        n_neg],
+                batch_size=global_batch_size,
+                min_anchor=n_anchor)
     
 
 if __name__=='__main__':

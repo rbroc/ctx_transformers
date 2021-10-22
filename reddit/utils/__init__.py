@@ -1,6 +1,7 @@
 from .tfrecords import (save_tfrecord, 
                         load_tfrecord)
 from .datasets import (split_dataset,
+                       filter_triplet_by_n_anchors,
                        pad_and_stack_triplet,
                        mask_and_stack_mlm,
                        remove_short_targets,
@@ -21,6 +22,7 @@ from .misc import stringify
 __all__ = ['save_tfrecord',
            'load_tfrecord',
            'split_dataset', 
+           'filter_triplet_by_n_anchors',
            'pad_and_stack_triplet',
            'mask_and_stack_mlm',
            'remove_short_targets',
