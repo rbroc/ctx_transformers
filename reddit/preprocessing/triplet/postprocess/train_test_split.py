@@ -3,6 +3,7 @@ import random
 from pathlib import Path
 from shutil import copyfile
 import json
+import argparse
 import gzip
 
 META_PATH = Path('..') / '..' / '..' / 'data' / 'meta'
