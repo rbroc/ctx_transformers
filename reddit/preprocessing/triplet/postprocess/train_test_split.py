@@ -22,6 +22,10 @@ def split(dataset_name):
     TEST_PATH = DATASET_PATH / 'test'
     TRAIN_JSON_PATH = JSON_PATH / 'train'
     TEST_JSON_PATH = JSON_PATH / 'test'
+    TRAIN_PATH.mkdir(parents=True, exist_ok=True)
+    TEST_PATH.mkdir(parents=True, exist_ok=True)
+    TRAIN_JSON_PATH.mkdir(parents=True, exist_ok=True)
+    TEST_JSON_PATH.mkdir(parents=True, exist_ok=True)
 
     # Get ids
     fs = glob.glob(str(DATASET_PATH / '*'))
