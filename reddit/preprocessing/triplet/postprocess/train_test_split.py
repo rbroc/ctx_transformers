@@ -8,7 +8,7 @@ import gzip
 
 META_PATH = Path('..') / '..' / '..' / 'data' / 'meta'
 TRIPLET_DS_PATH = Path('..') / '..' / '..' / 'data' / 'datasets' / 'triplet'
-TRIPLET_JSON_PATH = Path('..') / '..' / '..' / 'data' / 'datasets' / 'triplet'
+TRIPLET_JSON_PATH = Path('..') / '..' / '..' / 'data' / 'json' / 'triplet'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset-name', type=str)
