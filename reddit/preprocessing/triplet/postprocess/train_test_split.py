@@ -31,12 +31,6 @@ def split(dataset_name):
     test_nrs = [f.split('/')[-1].split('_')[1].split('-')[0]
                 for f in test_fs]
 
-    # Get json files
-    train_json_fs = [
-                     for n in train_nrs]
-    test_json_fs = [str(TEST_PATH / f'batch_{n}.json.gz') 
-                    for n in test_nrs]
-
     # Move dataset files
     for i, n in enumerate(test_nrs):
         inpj = str(JSON_PATH / f'batch_{n}.json.gz')
