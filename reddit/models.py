@@ -33,13 +33,18 @@ class BatchTransformer(keras.Model):
             compress_mode (str): if compress_to is defined, can be
                 'dense' for linear compression or 'vae' for auto-encoder
                 compression
+            intermediate_size (int): size of intermediate layers for 
+                compression
+            pooling (str): can be cls, mean, random. Random just pulls 
+                random non-zero tokens.
     '''
     def __init__(self, transformer, path_to_weights,
                  name=None, trainable=True,
                  output_attentions=False, 
                  compress_to=None,
                  compress_mode=None,
-                 intermediate_size=None):
+                 intermediate_size=None,
+                 pooling='cls'):
         if name is None:
             cto_str = str(compress_to) + '_' or 'no'
             cmode_str = compress_mode or ''
@@ -60,6 +65,7 @@ class BatchTransformer(keras.Model):
                                                 intermediate_size)
         else:
             self.compressor = None
+        self.pooling = pooling
 
     def _encode_batch(self, example):
         mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
@@ -70,7 +76,18 @@ class BatchTransformer(keras.Model):
                               input_ids=example['input_ids'],
                               attention_mask=example['attention_mask']
                               )
-        encoding = output.last_hidden_state[:,0,:]
+        if self.pooling == 'cls':
+            encoding = output.last_hidden_state[:,0,:]
+        elif self.pooling == 'mean':
+            encoding = tf.reduce_sum(output.last_hidden_state[:,1:,:], axis=1)
+            n_tokens = tf.reduce_sum(example['attention_mask'], axis=1, keepdims=1)
+            encoding = encoding / tf.cast(n_tokens, tf.float32)
+        elif self.pooling == 'random':
+            n_nonzero = tf.reduce_sum(example['attention_mask'], axis=-1)
+            idxs = tf.map_fn(lambda x: tf.random.uniform(shape=[], minval=1,
+                             maxval=x, dtype=tf.int32), n_nonzero)
+            encoding = tf.gather(output.last_hidden_state, idxs, 
+                                  axis=1, batch_dims=1)
         attentions = output.attentions if self.output_attentions else None
         masked_encoding = tf.multiply(encoding, mask)
         return masked_encoding, attentions
