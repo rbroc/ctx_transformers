@@ -31,9 +31,9 @@ def split(dataset_name):
     fs = glob.glob(str(DATASET_PATH / '*'))
     test_fs = list(random.sample(fs, int(len(fs)*.1)))
     train_fs = list(set(fs) - set(test_fs))
-    train_nrs = [f.split('_')[1].split('-')[0]
+    train_nrs = [f.split('/')[-1].split('_')[1].split('-')[0]
                  for f in train_fs]
-    test_nrs = [f.split('_')[1].split('-')[0]
+    test_nrs = [f.split('/')[-1].split('_')[1].split('-')[0]
                 for f in test_fs]
 
     # Move dataset files
