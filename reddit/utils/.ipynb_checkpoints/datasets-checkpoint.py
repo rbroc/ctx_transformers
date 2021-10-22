@@ -1,7 +1,12 @@
 import tensorflow as tf
 
 
-def pad_and_stack_triplet(dataset, pad_to=[20,1,1]):
+def filter_triplet_by_n_anchors(x, min_anchors):
+    ''' Filtering function to remove stuff which is too short to be masked '''
+    return tf.math.greater(x['n_anchor'], min_anchors-1)
+
+
+def pad_and_stack_triplet(dataset, pad_to=[20,1,1], min_anchors=None):
     ''' Pads the dataset according to specified number of posts 
         passed via pad_to (anchor, positive, negative) and stacks
         negative, positive and anchor posts vertically.
@@ -12,6 +17,8 @@ def pad_and_stack_triplet(dataset, pad_to=[20,1,1]):
             to pad to, i.e., [n_anchor_posts, n_positive_posts,
             n_negative_posts]
     '''
+    if min_anchors:
+        dataset = dataset.filter(lambda x: filter_triplet_by_n_anchors(x, min_anchors))
     dataset = dataset.map(lambda x: {'iids': x['iids'][:pad_to[0],:], 
                                      'amask': x['amask'][:pad_to[0],:],
                                      'pos_iids': x['pos_iids'][:pad_to[1],:],
@@ -116,13 +123,23 @@ def mask_and_stack_mlm(dataset, is_context=True, mask_proportion=.15):
     return dataset
     
 
-def prepare_agg(dataset):  
+def prepare_agg(dataset, targets):  
     dataset = dataset.map(lambda x: {'input_ids': x['iids'],
                                      'attention_mask': x['amask'],    
                                      'id': x['author_id'],
                                      'avg_score': x['avg_score'],
                                      'avg_comm': x['avg_comm'], 
-                                     'avg_posts': x['avg_posts']})
+                                     'avg_posts': x['avg_posts'],
+                                     'labels': [x[i] for i in targets]})
+    return dataset
+
+def prepare_posts(dataset, targets):  
+    dataset = dataset.map(lambda x: {'input_ids': x['iids'],
+                                     'attention_mask': x['amask'],
+                                     'score': x['score'],
+                                     'comments': x['comments'],  
+                                     'labels': [x[i] for i in targets]})
+    
     return dataset
     
     

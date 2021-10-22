@@ -123,13 +123,23 @@ def mask_and_stack_mlm(dataset, is_context=True, mask_proportion=.15):
     return dataset
     
 
-def prepare_agg(dataset):  
+def prepare_agg(dataset, targets):  
     dataset = dataset.map(lambda x: {'input_ids': x['iids'],
                                      'attention_mask': x['amask'],    
                                      'id': x['author_id'],
                                      'avg_score': x['avg_score'],
                                      'avg_comm': x['avg_comm'], 
-                                     'avg_posts': x['avg_posts']})
+                                     'avg_posts': x['avg_posts'],
+                                     'labels': [x[i] for i in targets]})
+    return dataset
+
+def prepare_posts(dataset, targets):  
+    dataset = dataset.map(lambda x: {'input_ids': x['iids'],
+                                     'attention_mask': x['amask'],
+                                     'score': x['score'],
+                                     'comments': x['comments'],  
+                                     'labels': [x[i] for i in targets]})
+    
     return dataset
     
     

@@ -165,8 +165,9 @@ class HierarchicalAttentionAggregator(keras.layers.Layer):
         relu_dims (int): how many units for the relu layer (dimensionality 
             of the model)
     '''
-    def __init__(self, n_contexts, n_tokens, relu_dims=768):
-        super(HierarchicalContextAttention, self).__init__()
+    def __init__(self, n_contexts, n_tokens, config, relu_dims=768):
+        super(HierarchicalAttentionAggregator, self).__init__()
+        
         self.ctx_transf = TFMultiHeadSelfAttention(config, name="attention")
         self.post_transf_dense = Dense(units=relu_dims, activation='relu')
         self.post_transf_normalizer = LayerNormalization(epsilon=1e-12)
@@ -176,10 +177,10 @@ class HierarchicalAttentionAggregator(keras.layers.Layer):
     def call(self, hidden_state):
         cls_tkn = hidden_state[:,0,:]
         cls_tkn = tf.expand_dims(cls_tkn, axis=0)
-        cls_tkn = self.ctx_transf(cls_tokens, cls_tokens, cls_tokens,
+        cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn,
                                   self.att_mask, None, False, True)[0][0,:,:]
-        cls_tkn = tf.expand_dims(cls_tokens, axis=1)
-        cls_tkn = tf.pad(cls_tokens, self.padding_matrix)
+        cls_tkn = tf.expand_dims(cls_tkn, axis=1)
+        cls_tkn = tf.pad(cls_tkn, self.padding_matrix)
         merged = self.post_transf_dense(cls_tkn+hidden_state)
         hidden_state = self.post_transf_normalizer(merged+hidden_state)
         return hidden_state
@@ -202,7 +203,7 @@ class ContextPooler(keras.layers.Layer):
 
 
 class BiencoderContextPooler(ContextPooler):
-     ''' Context pooler for biencoder for context MLM'''
+    ''' Context pooler for biencoder for context MLM'''
     def __init__(self):
         super(BiencoderContextPooler, self).__init__()
         self.normalizer = LayerNormalization(epsilon=1e-12)

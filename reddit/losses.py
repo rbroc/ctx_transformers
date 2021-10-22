@@ -143,7 +143,7 @@ class MLMLoss:
         return outs
     
 
-class AggregateLoss:
+class MetricsLoss:
     ''' Loss function for aggregates prediction 
     Args:
         name (str): loss name

@@ -8,13 +8,13 @@ from .layers import (MLMHead,
                      SimpleCompressor,
                      VAECompressor)
 from .losses import (TripletLossBase, TripletLossFFN,
-                     MLMLoss, AggregateLoss)
+                     MLMLoss, MetricsLoss)
 from .models import (BatchTransformer, BatchTransformerFFN,
                      BatchTransformerForMLM,
                      BatchTransformerForContextMLM,
                      HierarchicalTransformerForContextMLM,
                      BiencoderForContextMLM,
-                     BatchTransformerForAggregates)
+                     BatchTransformerForMetrics)
 from .logging import (Logger, ModelCheckpoint,
                       OptimizerCheckpoint)
 from .training import Trainer
@@ -32,14 +32,14 @@ __all__ = ['MLMHead',
            'TripletLossBase', 
            'TripletLossFFN', 
            'MLMLoss',
-           'AggregateLoss',
+           'MetricsLoss',
            'BatchTransformer', 
            'BatchTransformerFFN',
            'BatchTransformerForMLM', 
            'BatchTransformerForContextMLM',
            'HierarchicalTransformerForContextMLM',
            'BiencoderForContextMLM',
-           'BatchTransformerForAggregates',
+           'BatchTransformerForMetrics',
            'Logger', 
            'ModelCheckpoint', 
            'OptimizerCheckpoint',

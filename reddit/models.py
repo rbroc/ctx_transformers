@@ -10,8 +10,8 @@ from reddit.utils import (average_encodings,
 from reddit.layers import (BatchTransformerContextAggregator,
                            BiencoderSimpleAggregator,
                            BiencoderAttentionAggregator,
-                           HierarchicalContextAttention,
-                           BatchTransformerContextPooler,
+                           HierarchicalAttentionAggregator,
+                           ContextPooler,
                            BiencoderContextPooler,
                            MLMHead, 
                            SimpleCompressor, 
@@ -357,7 +357,8 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         mlm_model = transformer(config)
         self.encoder = mlm_model.layers[0]
         self.hier_attentions = [HierarchicalContextAttention(self.n_contexts, 
-                                                             self.n_tokens)
+                                                             self.n_tokens, 
+                                                             config)
                                 for _ in range(n_layers-1)]
         self.mlm_head = MLMHead(mlm_model, reset=True)
         
@@ -489,12 +490,15 @@ class BiencoderForContextMLM(keras.Model):
         return logits
 
     
-class BatchTransformerForAggregates(keras.Model):
+class BatchTransformerForMetrics(keras.Model):
     ''' Encodes and averages posts, predict aggregate 
     Args:
         transformer (transformers.Model): huggingface transformer
         weights (str): path to pretrained or init weights
         name (str): name
+        metric_type (str): type of metric to predict. Should be 
+            aggregate (if user-level metric) or single (if post-level
+            metric)
         target (str): name of target metric within agg dataset
         add_dense (int): number of dense layers to add before classification
         dims (list): number of nodes per layer
@@ -504,27 +508,31 @@ class BatchTransformerForAggregates(keras.Model):
                  transformer, 
                  weights=None,
                  name=None, 
-                 target='avg_posts',
+                 metric_type='aggregate',
+                 targets=['avg_posts'],
                  add_dense=0,
-                 dims=[10],
+                 dims=None,
+                 activations=None,
                  encoder_trainable=False):
-        dims_str = '_'.join(dims)
+        dims_str = '_'.join(dims) + '_dense' if dims else 'nodense'
         if len(dims) != add_dense:
             raise ValueError('dims should have add_dense values')
         if name is None:
-            name = f'BatchTransformerForAggregates-{add_dense}-{dims_str}'
+            name = f'BatchTransformerForMetrics-{dims_str}'
         super(BatchTransformerForAggregates, self).__init__(name=name)
         self.trainable = True
         self.encoder = transformer.from_pretrained(weights)
         self.encoder.trainable = encoder_trainable
-        self.target = target
+        self.targets = targets
         self.output_signature = tf.float32
         if add_dense > 0:
-            self.dense_layers = keras.Sequential([Dense(dims[idx])
-                                                  for idx in range(add_dense)])
+            self.dense_layers = keras.Sequential([Dense(dims[i], 
+                                                        activation=activations[i])
+                                                  for i in range(add_dense)])
         else:
             self.dense_layers = None
-        self.head = Dense(1, activation='linear')
+        self.head = Dense(len(targets), activation='relu')
+        self.metric_type = metric_type
 
     def _encode_batch(self, example):
         output = self.encoder(input_ids=example['input_ids'],
@@ -532,13 +540,18 @@ class BatchTransformerForAggregates(keras.Model):
         encoding = output.last_hidden_state[:,0,:]
         return encoding
 
+    def _aggregate(self, encodings):
+        if self.metric_type == 'aggregate':
+            return tf.reduce_mean(encodings, axis=1)
+        elif self.metric_type == 'single':
+            return encodings[:,0,:]
 
     def call(self, input):
         encodings = tf.vectorized_map(self._encode_batch, elems=input)
-        out = tf.reduce_mean(encodings, axis=1)
+        out = self._aggregate(encodings)
         if self.dense_layers:
             out = self.dense_layers(out)
         out = self.head(out)
         return out
 
-        
+    

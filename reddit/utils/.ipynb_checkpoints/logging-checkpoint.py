@@ -5,16 +5,19 @@ LOG_DICT = {'triplet': ['losses',
                         'dist_anch'],
            'mlm': ['losses', 'entropy', 'is_true_top'],
            'mlm_simple': ['losses', 'entropy', 'is_true_top'],
-           'agg': ['losses']}
+           'agg': ['losses'],
+           'posts': ['losses']}
 
 
 META_DICT = {'triplet': [],
-             'mlm': [], # labels
+             'mlm': ['labels'],
              'mlm_simple': [],
-             'agg': []} # labels
+             'agg': ['labels'],
+             'posts':['labels']}
 
 
 PBAR_DICT = {'triplet': ['losses', 'metrics'],
              'mlm': ['losses', 'entropy', 'is_true_top'],
              'mlm_simple': ['losses', 'entropy', 'is_true_top'],
-             'agg': ['losses']}
+             'agg': ['losses'],
+             'posts': ['losses']}

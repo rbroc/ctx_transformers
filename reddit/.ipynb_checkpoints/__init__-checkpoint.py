@@ -4,15 +4,17 @@ from .layers import (MLMHead,
                      BiencoderAttentionAggregator,
                      HierarchicalAttentionAggregator, 
                      ContextPooler,
-                     BiencoderContextPooler)
+                     BiencoderContextPooler,
+                     SimpleCompressor,
+                     VAECompressor)
 from .losses import (TripletLossBase, TripletLossFFN,
-                     MLMLoss, AggregateLoss)
+                     MLMLoss, MetricsLoss)
 from .models import (BatchTransformer, BatchTransformerFFN,
                      BatchTransformerForMLM,
                      BatchTransformerForContextMLM,
                      HierarchicalTransformerForContextMLM,
                      BiencoderForContextMLM,
-                     BatchTransformerForAggregates)
+                     BatchTransformerForMetrics)
 from .logging import (Logger, ModelCheckpoint,
                       OptimizerCheckpoint)
 from .training import Trainer
@@ -25,17 +27,19 @@ __all__ = ['MLMHead',
            'HierarchicalAttentionAggregator', 
            'ContextPooler',
            'BiencoderContextPooler',
+           'SimpleCompressor',
+           'VAECompressor',
            'TripletLossBase', 
            'TripletLossFFN', 
            'MLMLoss',
-           'AggregateLoss',
+           'MetricsLoss',
            'BatchTransformer', 
            'BatchTransformerFFN',
            'BatchTransformerForMLM', 
            'BatchTransformerForContextMLM',
            'HierarchicalTransformerForContextMLM',
            'BiencoderForContextMLM',
-           'BatchTransformerForAggregates',
+           'BatchTransformerForMetrics',
            'Logger', 
            'ModelCheckpoint', 
            'OptimizerCheckpoint',

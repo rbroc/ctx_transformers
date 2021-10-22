@@ -5,7 +5,7 @@ from .datasets import (split_dataset,
                        pad_and_stack_triplet,
                        mask_and_stack_mlm,
                        remove_short_targets,
-                       prepare_agg)
+                       prepare_agg, prepare_posts)
 from .compute import (compute_mean_pairwise_distance,
                       average_encodings,
                       sampling_vae)
@@ -27,6 +27,7 @@ __all__ = ['save_tfrecord',
            'mask_and_stack_mlm',
            'remove_short_targets',
            'prepare_agg',
+           'prepare_posts',
            'average_encodings', 
            'sampling_vae',
            'compute_mean_pairwise_distance',
