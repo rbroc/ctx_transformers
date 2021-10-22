@@ -24,7 +24,7 @@ class BatchTransformer(keras.Model):
         Args:
             transformer (model): model object from huggingface
                 transformers (e.g. TFDistilBertModel)
-            path_to_weights (str): path to pretrained weights
+            pretrained_weights (str): path to pretrained weights
             name (str): model name. If not provided, uses path_to_weights
             trainable (bool): whether to freeze weights
             output_attentions (bool): if attentions should be added
@@ -38,7 +38,7 @@ class BatchTransformer(keras.Model):
             pooling (str): can be cls, mean, random. Random just pulls 
                 random non-zero tokens.
     '''
-    def __init__(self, transformer, path_to_weights,
+    def __init__(self, transformer, pretrained_weights,
                  name=None, trainable=True,
                  output_attentions=False, 
                  compress_to=None,
@@ -48,10 +48,9 @@ class BatchTransformer(keras.Model):
         if name is None:
             cto_str = str(compress_to) + '_' or 'no'
             cmode_str = compress_mode or ''
-            name = f'BatchTransformer-{path_to_weights}-{cto_str}{cmode_str}_compress'
+            name = f'BatchTransformer-{pretrained_weights}-{cto_str}{cmode_str}_compress'
         super(BatchTransformer, self).__init__(name=name)
-        self.path_to_weights = path_to_weights
-        self.encoder = transformer.from_pretrained(path_to_weights, 
+        self.encoder = transformer.from_pretrained(pretrained_weights, 
                                                    output_attentions=output_attentions)
         self.trainable = trainable
         self.output_signature = tf.float32
@@ -110,7 +109,7 @@ class BatchTransformerFFN(BatchTransformer):
         transformer (model): model object from huggingface
             transformers (e.g. TFDistilBertModel) for batch
             transformer
-        path_to_weights (str): path to pretrained weights
+        pretrained_weights (str): path to pretrained weights
         n_dense (int): number of dense layers to add on top
             of batch transformer
         dims (int or list): number of nodes per layer
@@ -122,34 +121,29 @@ class BatchTransformerFFN(BatchTransformer):
         kwargs: kwargs for layers.Dense call
     '''
     def __init__(self,
-                 transformer, path_to_weights, 
-                 n_dense=3,
-                 dims=768,
-                 activations='relu',
+                 transformer, 
+                 pretrained_weights, 
+                 n_dense=1,
+                 dims=[768],
+                 activations=['relu'],
                  trainable=False,
                  name=None, 
                  **kwargs):
 
-        if isinstance(dims,list):
-            if len(dims) != n_dense:
-                raise ValueError('length of dims does '
-                                 'match number of layers')
-        elif isinstance(dims, int):
-            dims = [dims] * n_dense
-        self.dims = dims
-        if isinstance(activations,list):
-            if len(activations) != n_dense:
+        if len(dims) != n_dense:
+            raise ValueError('length of dims does '
+                                'match number of layers')
+        if len(activations) != n_dense:
                 raise ValueError('length of activations does '
-                                 'match number of layers')
-        if not isinstance(activations, list):
-            activations = [activations] * n_dense
+                                 'match number of layers')           
+        self.dims = dims
         self.activations = activations
         if name is None:
-            name = f'''BatchTransformerFFN-{path_to_weights}_
+            name = f'''BatchTransformerFFN-{pretrained_weights}_
                        layers-{n_dense}_
                        dim-{'_'.join([str(d) for d in dims])}_
                        {'_'.join(activations)}'''
-        super().__init__(transformer, path_to_weights, name, 
+        super().__init__(transformer, pretrained_weights, name, 
                          trainable)
         self.dense_layers = keras.Sequential([Dense(dims[i], activations[i], **kwargs)
                                               for i in range(n_dense)])

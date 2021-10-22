@@ -107,11 +107,6 @@ def _run_training(mlm_type,
                   n_layers_context_encoder, 
                   update_every,
                   test_only):
-    
-    # Fix dims argument
-    if dims:
-        if not isinstance(dims, list):
-            dims = [dims]
 
     # Define type of training
     if context_type == 'single':
