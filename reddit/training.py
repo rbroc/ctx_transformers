@@ -1,8 +1,5 @@
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
-import json
-from pathlib import Path
-import numpy as np
 from reddit import (Logger, ModelCheckpoint,
                     OptimizerCheckpoint)
 from reddit.utils import LOG_DICT, META_DICT, PBAR_DICT
@@ -35,6 +32,8 @@ class Trainer:
         eval_before_training (bool): whether to run a test epoch 
             before the first training epoch (useful to gather 
             baseline performance)
+        update_every (int): parameter for frequency of gradient 
+            accumulation
     '''
     def __init__(self, model, 
                  loss_object, strategy, 
@@ -47,7 +46,6 @@ class Trainer:
                  log_every=100,
                  start_epoch=0,
                  ds_type='triplet',
-                 mlm_type=None,
                  checkpoint_device=None,
                  log_path='..',
                  eval_before_training=True,
@@ -124,8 +122,8 @@ class Trainer:
 
     def _gradient_update(self, accumulated_grads):
         ''' Define gradient update '''
-        avg_grads = [a/(self.update_every) for a in accumulated_grads] # maybe remove?
-        self.optimizer.apply_gradients(zip(accumulated_grads, 
+        avg_grads = [a/(self.update_every) for a in accumulated_grads]
+        self.optimizer.apply_gradients(zip(avg_grads, 
                                            self.model.trainable_variables))
         
     @tf.function

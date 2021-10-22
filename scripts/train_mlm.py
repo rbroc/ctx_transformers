@@ -3,21 +3,25 @@ from reddit.utils import (load_tfrecord,
                           mlm_transform,
                           remove_short_targets)
 from reddit.models import (BatchTransformerForMLM, 
-                           BatchTransformerForContextMLM)
+                           BatchTransformerForContextMLM, 
+                           BiencoderForContextMLM, 
+                           HierarchicalTransformerForContextMLM)
 from reddit.losses import MLMLoss
 from reddit.training import Trainer
 from transformers import (TFDistilBertModel, 
                           TFDistilBertForMaskedLM)
 import glob
 from pathlib import Path
+import argparse
 import tensorflow as tf
 from official.nlp.optimization import create_optimizer
-import argparse
-import os
+
+DATA_PATH = Path('..') /'reddit'/ 'data' / 'datasets'/ 'mlm'
 
 
 # Initialize parser
 parser = argparse.ArgumentParser()
+# Training loop argument
 parser.add_argument('--dataset-name', type=str, default=None,
                     help='Name of dataset to use')
 parser.add_argument('--context-type', type=str, default='single',
@@ -34,66 +38,76 @@ parser.add_argument('--start-epoch', type=int, default=0,
                     help='Epoch to start from')
 parser.add_argument('--update-every', type=int, default=16,
                     help='Update every n steps')
-parser.add_argument('--load-encoder-weights', type=str, default=None,
-                    help='Path to model weights to load (huggingface version)')
-parser.add_argument('--freeze-encoder-layers', nargs='+', default=None,
-                    help='Which layers to freeze in the encoder (0 to n-1, with 0 being first)')
+
+# Model arguments
+parser.add_argument('--mlm-type', type=str,
+                    help='Type of mlm model (standard, hier, biencoder)')
+parser.add_argument('--pretrained-weights', type=str, 
+                    default='distilbert-base-uncased',
+                    help='Pretrained huggingface model')
+parser.add_argument('--trained-encoder-weights', type=str, default=None,
+                    help='Path to trained encoder weights to load (hf format)')
+parser.add_argument('--n-layers', type=int, default=None,
+                    help='''Number of transformer layers for 
+                            architecture (relevant if not passing 
+                            pretrained weights)''')
+parser.add_argument('--freeze-encoder', nargs='+', default=None,
+                    help='''Which layers to freeze in the encoder 
+                            (0 to n-1, with 0 being first)''')
 parser.add_argument('--add-dense', type=int, default=None,
                     help='''Number of dense layers to add to MLM with context
-                            after encoding and concatenating.''')
-
+                            after concatenation (see model specs)''')
 parser.add_argument('--dims', nargs='+', help='Number of nodes in layers', 
-                    default=768)
-
+                    default=None)
 parser.add_argument('--n-tokens', type=int, default=512,
                     help='Number of tokens in encoding')
-parser.add_argument('--context-pooling', type=str, default='cls',
-                    help='How to pool context')
-parser.add_argument('--hierarchical', type=int, default=0,
-                    help='Whether hierarchical training')
+parser.add_argument('--n-contexts', type=int, default=10,
+                    help='''Number of contexts passed 
+                            (relevant if context models)''')
+parser.add_argument('--vocab-size', type=int, default=30522,
+                    help='Vocabulary size for the model (if not pretrained)')
+parser.add_argument('--aggregate', type=str, default='concat',
+                    help='''For context MLM and biencoder model, 
+                    how to aggregate target and 
+                            context (add or concat for ContextMLM, 
+                            + attention for biencoder)''')
+parser.add_argument('--n-layers-context-encoder', type=int, default=None,
+                    help='''Number of transformer layers for 
+                            additional context encoder architecture 
+                            in biencoder ''')
+
 
 # Define boolean args
-parser.add_argument('--test-only', dest='test_only', action='store_true',
-                    help='Whether to only run one test epoch')
-parser.add_argument('--freeze-encoder-false', dest='freeze_encoder', action='store_false',
-                    help='Whether to unfreeze the encoder')
-parser.add_argument('--freeze-head', dest='freeze_head', action='store_true',
-                    help='Whether to freeze classification head')
 parser.add_argument('--reset-head', dest='reset_head', action='store_true',
                     help='Whether to reinitialize classification head')
-parser.add_argument('--from-scratch', dest='from_scratch', action='store_true',
-                    help='Whether to train from scratch')
-parser.set_defaults(test_only=False, freeze_head=False, 
-                    freeze_encoder=True, reset_head=False,
-                    from_scratch=False)
+parser.add_argument('--test-only', dest='test_only', action='store_true',
+                    help='Whether to only run one test epoch')
+parser.set_defaults(test_only=False, reset_head=False)
 
 
-def _run_training(log_path, 
+def _run_training(mlm_type,
+                  log_path, 
                   dataset_name,
                   context_type,
                   per_replica_batch_size, 
                   dataset_size,
                   n_epochs,
                   start_epoch,
-                  load_encoder_weights,
+                  pretrained_weights,
+                  trained_encoder_weights,
                   freeze_encoder,
-                  freeze_encoder_layers,
-                  freeze_head,
                   reset_head,
                   add_dense,
                   dims,
+                  n_contexts,
                   n_tokens,
-                  test_only,
-                  context_pooling, 
+                  vocab_size,
+                  aggregate,
+                  n_layers,
+                  n_layers_context_encoder, 
                   update_every,
-                  from_scratch, 
-                  hierarchical):
-    
-    if hierarchical == 1:
-        hierarchical = True
-    else:
-        hierarchical = False
-    
+                  test_only):
+
     # Define type of training
     if context_type == 'single':
         ds_type = 'mlm_simple'
@@ -101,7 +115,12 @@ def _run_training(log_path,
         is_context = False
     else:
         ds_type = 'mlm'
-        model_class = BatchTransformerForContextMLM
+        if mlm_type == 'standard':
+            model_class = BatchTransformerForContextMLM
+        elif mlm_type == 'hier':
+            model_class = HierarchicalTransformerForContextMLM
+        elif mlm_type == 'biencoder':
+            model_class = BiencoderForContextMLM
         is_context = True
    
     # Config
@@ -122,7 +141,8 @@ def _run_training(log_path,
     strategy = tf.distribute.MirroredStrategy(devices=logical_gpus)
     
     # Set up dataset 
-    fs_train = glob.glob(f'../reddit/data/datasets/mlm/{dataset_name}/{context_type}/train/batch*')
+    pattern = str(DATA_PATH/ dataset_name / context_type / 'train'/ 'batch*')
+    fs_train = glob.glob(pattern)
     ds = load_tfrecord(fs_train, deterministic=True, ds_type=ds_type)
     ds_train, ds_val, _ = split_dataset(ds, 
                                         size=dataset_size, 
@@ -142,37 +162,54 @@ def _run_training(log_path,
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        optimizer = create_optimizer(2e-5,
-                                     num_train_steps=n_train_steps * n_epochs,
-                                     num_warmup_steps=n_train_steps / 10)
-        #optimizer = tf.keras.optimizers.Adam(learning_rate=2e-5) # consider this being the problem?
+        optimizer = create_optimizer(2e-5, # allow edit
+                                     num_train_steps=n_train_steps * n_epochs, # allow edit
+                                     num_warmup_steps=n_train_steps / 10) # allow edit
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,
-                                init_weights='distilbert-base-uncased',
-                                load_encoder_weights=load_encoder_weights,
-                                load_encoder_model_class=TFDistilBertModel,
-                                freeze_head=freeze_head,
+                                pretrained_weights=pretrained_weights,
+                                trained_encoder_weights=trained_encoder_weights,
+                                trained_encoder_class=TFDistilBertModel,
+                                n_layers=n_layers,
                                 freeze_encoder=freeze_encoder,
-                                freeze_encoder_layers=freeze_encoder_layers,
                                 reset_head=reset_head,
-                                from_scratch=from_scratch)
+                                vocab_size=vocab_size)
         else:
-            model = model_class(transformer=TFDistilBertForMaskedLM,
-                                init_weights='distilbert-base-uncased',
-                                load_encoder_weights=load_encoder_weights,
-                                load_encoder_model_class=TFDistilBertModel,
-                                freeze_head=freeze_head,
-                                reset_head=reset_head,
-                                freeze_encoder=freeze_encoder,
-                                freeze_encoder_layers=freeze_encoder_layers,
-                                add_dense=add_dense,
-                                dims=dims,
-                                n_tokens=n_tokens,
-                                context_pooling=context_pooling,
-                                batch_size=per_replica_batch_size,
-                                from_scratch=from_scratch, 
-                                hierarchical=hierarchical)
+            if mlm_type == 'standard':
+                model = model_class(transformer=TFDistilBertForMaskedLM,
+                                    pretrained_weights=pretrained_weights,
+                                    trained_encoder_weights=trained_encoder_weights,
+                                    trained_encoder_class=TFDistilBertModel,
+                                    n_layers=n_layers,
+                                    freeze_encoder=freeze_encoder,
+                                    reset_head=reset_head,
+                                    add_dense=add_dense,
+                                    dims=dims,
+                                    n_tokens=n_tokens,
+                                    aggregate=aggregate,
+                                    n_contexts=n_contexts,
+                                    vocab_size=vocab_size)
+            elif mlm_type == 'hier':
+                model = model_class(transformer=TFDistilBertForMaskedLM,
+                                    n_layers=n_layers,
+                                    n_tokens=n_tokens,
+                                    n_contexts=n_contexts,
+                                    vocab_size=vocab_size)
+            elif mlm_type == 'biencoder':
+                model = model_class(transformer=TFDistilBertForMaskedLM,
+                                    pretrained_token_encoder_weights=pretrained_weights,
+                                    trained_token_encoder_weights=trained_encoder_weights,
+                                    trained_token_encoder_class=TFDistilBertModel,
+                                    n_layers_token_encoder=n_layers,
+                                    n_layers_context_encoder=n_layers_context_encoder,
+                                    freeze_token_encoder=freeze_encoder,
+                                    add_dense=add_dense,
+                                    dims=dims,
+                                    n_tokens=n_tokens,
+                                    aggregate=aggregate,
+                                    n_contexts=n_contexts,
+                                    vocab_size=vocab_size)
         loss = MLMLoss()
         
 
@@ -190,14 +227,14 @@ def _run_training(log_path,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False, ### EDITED
+                      eval_before_training=False,
                       test_steps=n_test_steps,
                       update_every=update_every)
 
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=False, #### EDITED
+                shuffle=False, # saving time
                 transform=mlm_transform,
                 transform_dynamic=True,
                 transform_test=True,
@@ -210,23 +247,25 @@ def _run_training(log_path,
 
 if __name__=='__main__':
     args = parser.parse_args()
-    _run_training(log_path=args.log_path, 
-                  dataset_name=args.dataset_name, 
+    _run_training(mlm_type=args.mlm_type,
+                  log_path=args.log_path, 
+                  dataset_name=args.dataset_name,
                   context_type=args.context_type,
-                  per_replica_batch_size=args.per_replica_batch_size,
+                  per_replica_batch_size=args.per_replica_batch_size, 
                   dataset_size=args.dataset_size,
                   n_epochs=args.n_epochs,
                   start_epoch=args.start_epoch,
-                  load_encoder_weights=args.load_encoder_weights,
-                  freeze_head=args.freeze_head,
-                  reset_head=args.reset_head,
+                  pretrained_weights=args.pretrained_weights,
+                  trained_encoder_weights=args.trained_encoder_weights,
                   freeze_encoder=args.freeze_encoder,
-                  freeze_encoder_layers=args.freeze_encoder_layers,
+                  reset_head=args.reset_head,
                   add_dense=args.add_dense,
                   dims=args.dims,
+                  n_contexts=args.n_contexts,
                   n_tokens=args.n_tokens,
-                  test_only=args.test_only,
-                  context_pooling=args.context_pooling,
+                  vocab_size=args.vocab_size,
+                  aggregate=args.aggregate,
+                  n_layers=args.n_layers,
+                  n_layers_context_encoder=args.n_layers_context_encoder, 
                   update_every=args.update_every,
-                  from_scratch=args.from_scratch,
-                  hierarchical=args.hierarchical)
+                  test_only=args.test_only)

@@ -1,15 +1,68 @@
 from tensorflow import keras
 import tensorflow as tf
+from reddit.utils import sampling_vae
 from tensorflow.keras.layers import (Dense,
                                      Concatenate,
                                      Add,
                                      MultiHeadAttention,
                                      LayerNormalization,
-                                     Dropout)
+                                     Dropout,
+                                     Lambda)
 from transformers.modeling_tf_utils import get_initializer
 from transformers.models.distilbert.modeling_tf_distilbert import TFMultiHeadSelfAttention
 
+
+class SimpleCompressor(keras.layers.Layer):
+    ''' Compresses encodings through relu layer(s)'''
+    def __init__(self, compress_to, intermediate_size=None):
+        dropout = Dropout(.20)
+        compress = Dense(units=compress_to, activation='relu')
+        if intermediate_size:
+            intermediate = Dense(units=intermediate_size, 
+                                 activation='relu')
+            layers = [dropout, intermediate, compress]
+        else:
+            layers = [dropout, compress]
+        self.compressor = keras.Sequential(layers)
+
+    def call(self, encodings):
+        out = self.compressor(encodings)
+        return out
+
+
+class VAECompressor(keras.layers.Layer):
+    ''' Compresses encodings through VAE '''
+    def __init__(self, 
+                 compress_to, 
+                 intermediate_size=None,
+                 encoder_dim=768):
+        if intermediate_size:
+            self.encoder_int = Dense(intermediate_size, activation='relu')
+        else:
+            self.encoder_int = None
+        self.z_mean = Dense(compress_to, activation='relu')
+        self.z_log_sigma = Dense(compress_to, activation='relu')
+        self.z = Lambda(sampling_vae)
+        if intermediate_size:
+            self.decoder_int = Dense(intermediate_size, activation='relu')
+        else:
+            self.decoder_int = None
+        self.outlayer = Dense(encoder_dim, activation='relu')
     
+    def call(self, encodings):
+        if self.encoder_int:
+            x = self.encoder_int(encodings)
+        else:
+            x = encodings
+        zm = self.z_mean(x)
+        zls = self.log_sigma(x)
+        x = self.z([zm, zls])
+        if self.decoder_int:
+            x = self.decoder_int(x)
+        out = self.outlayer(x)
+        return out
+
+
 class MLMHead(keras.layers.Layer):
     ''' Wraps mlm head for tidier model '''
     def __init__(self, mlm_model, reset=True):
@@ -115,7 +168,7 @@ class HierarchicalAttentionAggregator(keras.layers.Layer):
     def __init__(self, n_contexts, n_tokens, relu_dims=768):
         super(HierarchicalContextAttention, self).__init__()
         self.ctx_transf = TFMultiHeadSelfAttention(config, name="attention")
-        self.post_transf_dense = Dense(units=768, activation='relu')
+        self.post_transf_dense = Dense(units=relu_dims, activation='relu')
         self.post_transf_normalizer = LayerNormalization(epsilon=1e-12)
         self.att_mask = tf.constant(1, shape=[1,n_contexts+1])
         self.padding_matrix = [[0,0], [0,n_tokens-1], [0,0]]

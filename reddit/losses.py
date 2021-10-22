@@ -1,3 +1,4 @@
+from re import L
 import tensorflow as tf
 from tensorflow import keras
 from reddit.utils import (average_encodings, 
@@ -39,20 +40,26 @@ class TripletLossBase(TripletLoss):
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
     '''
-    def __init__(self, margin, n_neg=1, n_pos=1, 
+    def __init__(self, margin, n_neg=1, n_pos=1, n_anc=None, 
                  custom_loss_fn=None, name=None):
         super().__init__(margin, custom_loss_fn, name)
         self.n_neg = n_neg
         self.n_pos = n_pos
+        self.n_anc = n_anc
     
     def __call__(self, encodings):
         ''' Computes loss. Returns loss, metric and encodings distances 
         Args:
             encodings (tf.Tensor): posts encodings
         '''       
-        n_enc = encodings[:, :self.n_neg, :]
-        p_enc = encodings[:, self.n_neg:self.n_neg+self.n_pos, :]
-        a_enc = encodings[:, self.n_neg+self.n_pos:, :]
+        neg_idx = self.n_neg
+        pos_idx = neg_idx + self.n_pos
+        n_enc = encodings[:, :neg_idx, :]
+        p_enc = encodings[:, neg_idx:pos_idx, :]
+        if self.n_anc:
+            a_enc = encodings[:, pos_idx:pos_idx+self.n_anc, :]
+        else:
+            a_enc = encodings[:, pos_idx:, :]
         dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
         avg_a_enc = tf.squeeze(average_encodings(a_enc), axis=1)
         avg_n_enc = tf.squeeze(average_encodings(n_enc), axis=1)
