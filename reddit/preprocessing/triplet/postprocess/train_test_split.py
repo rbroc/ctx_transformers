@@ -28,7 +28,7 @@ def split(dataset_name):
     TEST_JSON_PATH.mkdir(parents=True, exist_ok=True)
 
     # Get ids
-    fs = glob.glob(str(DATASET_PATH / '*'))
+    fs = glob.glob(str(DATASET_PATH / 'batch*'))
     test_fs = list(random.sample(fs, int(len(fs)*.1)))
     train_fs = list(set(fs) - set(test_fs))
     train_nrs = [f.split('/')[-1].split('_')[1].split('-')[0]
@@ -53,18 +53,18 @@ def split(dataset_name):
         copyfile(inpd, outd)
 
     # Now store ids for future reference
-    train_json_fs = glob.glob(TRAIN_JSON_PATH / '*')
-    test_json_fs = glob.glob(TEST_JSON_PATH / '*')
+    train_json_fs = glob.glob(str(TRAIN_JSON_PATH / '*'))
+    test_json_fs = glob.glob(str(TEST_JSON_PATH / '*'))
     train_ids = []
     test_ids = []
     for t in train_json_fs:
         d = json.load(gzip.open(t))
-        train_ids.append(d['author_id'])
+        train_ids += [i['author_id'] for i in d]
     for t in test_json_fs:
         d = json.load(gzip.open(t))
-        test_ids.append(d['author_id'])
+        test_ids += [i['author_id'] for i in d]
     id_dict = {'train_ids': train_ids, 'test_ids': test_ids}
-    id_file = str(META_PATH / dataset_name / '_triplet_splits.json.gz')
+    id_file = str(META_PATH / dataset_name) + '_triplet_splits.json.gz'
     with gzip.open(id_file, 'w') as fh:
         fh.write(json.dumps(id_dict).encode('utf-8'))
 
