@@ -25,7 +25,7 @@ def split(dataset_name):
 
     # Get ids
     fs = glob.glob(str(DATASET_PATH / '*'))
-    test_fs = list(random.sample(fs, int(len(fs)*.1))
+    test_fs = list(random.sample(fs, int(len(fs)*.1)))
     train_fs = list(set(fs) - set(test_fs))
     train_nrs = [f.split('/')[-1].split('_')[1].split('-')[0]
                  for f in train_fs]
