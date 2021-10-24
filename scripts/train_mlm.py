@@ -236,7 +236,6 @@ def _run_training(mlm_type,
                 dataset_test=ds_val,
                 shuffle=False, # saving time
                 transform=mlm_transform,
-                transform_dynamic=True,
                 transform_test=True,
                 test_only=test_only,
                 labels=True, 

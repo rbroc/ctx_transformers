@@ -5,8 +5,8 @@ LOG_DICT = {'triplet': ['losses',
                         'dist_anch'],
            'mlm': ['losses', 'entropy', 'is_true_top'],
            'mlm_simple': ['losses', 'entropy', 'is_true_top'],
-           'agg': ['losses'],
-           'posts': ['losses']}
+           'agg': ['losses', 'preds'],
+           'posts': ['losses', 'preds']}
 
 
 META_DICT = {'triplet': [],

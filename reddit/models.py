@@ -541,12 +541,12 @@ class BatchTransformerForMetrics(keras.Model):
                  activations=None,
                  encoder_trainable=False):
         dims_str = '_'.join(dims) + '_dense' if dims else 'nodense'
-        if len(dims) != add_dense:
-            raise ValueError('dims should have add_dense values')
+        if dims:
+            if len(dims) != add_dense:
+                raise ValueError('dims should have add_dense values')
         if name is None:
             name = f'BatchTransformerForMetrics-{dims_str}'
-        super(BatchTransformerForAggregates, self).__init__(name=name)
-        self.trainable = True
+        super(BatchTransformerForMetrics, self).__init__(name=name)
         self.encoder = transformer.from_pretrained(weights)
         self.encoder.trainable = encoder_trainable
         self.targets = targets

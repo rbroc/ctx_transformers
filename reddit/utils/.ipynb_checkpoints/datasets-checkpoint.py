@@ -136,7 +136,8 @@ def prepare_agg(dataset, targets):
     return dataset
 
 def prepare_posts(dataset, targets):  
-    dataset = dataset.map(lambda x: {'input_ids': x['iids'],
+    dataset = dataset.map(lambda x: {'id': x['id'],
+                                     'input_ids': x['iids'],
                                      'attention_mask': x['amask'],
                                      'score': x['score'],
                                      'comments': x['comments'],  

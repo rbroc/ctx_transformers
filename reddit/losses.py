@@ -154,7 +154,7 @@ class MetricsLoss:
                  name=None,
                  loss_type='mse',
                  huber_delta=None):
-        self.name = name or f'aggregate-{loss_type}'
+        self.name = name or f'{loss_type}'
         if loss_type == 'mse':
             self.loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
         elif loss_type == 'mae':
@@ -164,7 +164,7 @@ class MetricsLoss:
                                                  reduction=tf.keras.losses.Reduction.NONE)
         else:
             raise ValueError('loss_type must be one of \'mae\', \'mse\', \'huber\'')
-        super.__init__()
+        super().__init__()
 
         
     def __call__(self, model_outs, labels):
@@ -174,6 +174,6 @@ class MetricsLoss:
             labels: true score for each label
         '''
         losses = self.loss_fn(model_outs, labels)
-        outs = [tf.reduce_mean(losses, axis=0)]
+        outs = [tf.reduce_mean(losses, axis=0), model_outs] # across batch?
         return outs
     

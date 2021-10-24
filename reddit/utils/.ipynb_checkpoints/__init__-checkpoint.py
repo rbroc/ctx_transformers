@@ -5,7 +5,8 @@ from .datasets import (split_dataset,
                        pad_and_stack_triplet,
                        mask_and_stack_mlm,
                        remove_short_targets,
-                       prepare_agg, prepare_posts)
+                       prepare_agg, 
+                       prepare_posts)
 from .compute import (compute_mean_pairwise_distance,
                       average_encodings,
                       sampling_vae)
@@ -16,7 +17,9 @@ from .models import (save_encoder_huggingface,
                      make_triplet_model_from_params,
                      make_mlm_model_from_params)
 from .transforms import (triplet_transform, 
-                         mlm_transform, agg_transform)
+                         mlm_transform, 
+                         agg_transform,
+                         posts_transform)
 from .logging import LOG_DICT, META_DICT, PBAR_DICT
 from .misc import stringify
 
@@ -41,6 +44,7 @@ __all__ = ['save_tfrecord',
            'triplet_transform', 
            'mlm_transform',
            'agg_transform',
+           'posts_transform',
            'LOG_DICT', 
            'META_DICT',
            'PBAR_DICT',

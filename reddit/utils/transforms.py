@@ -1,6 +1,6 @@
 from reddit.utils import (pad_and_stack_triplet,
                           mask_and_stack_mlm,
-                          prepare_agg)
+                          prepare_agg, prepare_posts)
 
 
 def triplet_transform(dataset, 
@@ -37,8 +37,16 @@ def mlm_transform(dataset,
     return dataset.batch(batch_size, drop_remainder=True)
 
 
-def agg_transform(dataset, 
+def agg_transform(dataset,
+                  targets,
                   batch_size=4):
     ''' Transform pipeline for aggregate prediction '''
-    dataset = prepare_agg(dataset)
+    dataset = prepare_agg(dataset, targets)
+    return dataset.batch(batch_size, drop_remainder=True)
+
+def posts_transform(dataset,
+                    targets,
+                    batch_size=4):
+    ''' Transform pipeline for aggregate prediction '''
+    dataset = prepare_posts(dataset, targets)
     return dataset.batch(batch_size, drop_remainder=True)

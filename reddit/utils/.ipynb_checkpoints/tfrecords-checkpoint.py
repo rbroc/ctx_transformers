@@ -19,7 +19,7 @@ FEATURE_NAMES = {'triplet': ['iids', 'amask',
                 'agg': ['iids', 'amask', 
                         'avg_score', 'avg_comm', 'avg_posts', 
                         'author_id'],
-                'posts': ['iids', 'amask', 'comments', 'score']}
+                'posts': ['iids', 'amask', 'comments', 'score', 'id']}
 
 FEATURE_OUT_TYPES = {'triplet': tuple([tf.int32]*7),
                      'mlm': tuple([tf.int32]*6),
@@ -28,7 +28,8 @@ FEATURE_OUT_TYPES = {'triplet': tuple([tf.int32]*7),
                              tf.float32, tf.float32, tf.float32,
                              tf.int32),
                      'posts':(tf.int32, tf.int32, 
-                              tf.float32, tf.float32)}
+                              tf.float32, tf.float32, 
+                              tf.int32)}
 
 
 

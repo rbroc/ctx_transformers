@@ -43,7 +43,10 @@ class Logger:
             meta (list): meta variables to log.
          '''
         for idx, d in enumerate(logvars):
-            fv = [float(v.numpy()) for v in d]
+            try:
+                fv = [float(v.numpy()) for v in d]
+            except:
+                fv = [v.numpy()[0].tolist() for v in d] # list vars
             if train:
                 self.logdict[self.trainer.train_vars[idx]] += fv
             else:

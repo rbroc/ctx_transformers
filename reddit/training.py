@@ -219,7 +219,6 @@ class Trainer:
             dataset_test=None, 
             shuffle=True,
             transform=None,
-            transform_dynamic=False,
             transform_test=False,
             test_only=False, 
             test_epoch_name='test_only',
@@ -232,9 +231,6 @@ class Trainer:
             shuffle (bool): whether to shuffle the dataset at each epoch
             transform (function): if defined, the function passed
                 here is applied to the training dataset.
-            transform_dynamic (bool): whether the transformation is to be 
-                applied at every epoch, or only once (before the first 
-                training epoch)
             transform_test (bool): apply transformation to test too?
             test_only (bool): whether to only run test epoch
             test_epoch_name (str): identifier for test epoch
@@ -257,16 +253,9 @@ class Trainer:
             
             for epoch in range(self.start_epoch, self.n_epochs):
                 dataset = dataset_train
-                
-                if transform: 
-                    if transform_dynamic:
-                        dataset = transform(dataset,
-                                            **transform_kwargs)
-                    else:
-                        if epoch == self.start_epoch:
-                            dataset = transform(dataset,
-                                                **transform_kwargs)
-                    
+                if transform:
+                    dataset = transform(dataset,
+                                        **transform_kwargs)
                 if shuffle:
                     print('Shuffling training data...')
                     dataset = dataset.shuffle(int(1)) # self.steps_per_epoch/3
