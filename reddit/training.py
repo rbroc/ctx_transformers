@@ -265,11 +265,11 @@ class Trainer:
                     else:
                         if epoch == self.start_epoch:
                             dataset = transform(dataset,
-                                                *transform_kwargs)
+                                                **transform_kwargs)
                     
                 if shuffle:
                     print('Shuffling training data...')
-                    dataset = dataset.shuffle(self.steps_per_epoch/3) # edited
+                    dataset = dataset.shuffle(int(1)) # self.steps_per_epoch/3
                     
                 if self.distributed:
                     dataset = self.strategy.experimental_distribute_dataset(dataset)

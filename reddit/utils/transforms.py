@@ -5,7 +5,8 @@ from reddit.utils import (pad_and_stack_triplet,
 
 def triplet_transform(dataset, 
                       pad_to=[20,1,1],
-                      batch_size=4):
+                      batch_size=4, 
+                      min_anchors=20):
     '''Transform pipeline for triplet dataset
     Args:
         dataset: dataset to transform
@@ -15,7 +16,8 @@ def triplet_transform(dataset,
             replicas * effective batch size)
     '''
     dataset = pad_and_stack_triplet(dataset, 
-                                    pad_to)
+                                    pad_to, 
+                                    min_anchors)
     return dataset.batch(batch_size, drop_remainder=True)
 
 

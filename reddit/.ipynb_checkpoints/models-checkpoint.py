@@ -6,6 +6,7 @@ from tensorflow.keras.layers import (Dense,
 from reddit.utils import (average_encodings,
                           dense_to_str, 
                           freeze_encoder_weights,
+                          make_triplet_model_from_params,
                           make_mlm_model_from_params)
 from reddit.layers import (BatchTransformerContextAggregator,
                            BiencoderSimpleAggregator,
@@ -25,7 +26,9 @@ class BatchTransformer(keras.Model):
             transformer (model): model object from huggingface
                 transformers (e.g. TFDistilBertModel)
             pretrained_weights (str): path to pretrained weights
-            name (str): model name. If not provided, uses path_to_weights
+            
+            name (str): model name.
+            
             trainable (bool): whether to freeze weights
             output_attentions (bool): if attentions should be added
                 to outputs (useful for diagnosing but not much more)
@@ -38,20 +41,35 @@ class BatchTransformer(keras.Model):
             pooling (str): can be cls, mean, random. Random just pulls 
                 random non-zero tokens.
     '''
-    def __init__(self, transformer, pretrained_weights,
+    def __init__(self, transformer, 
+                 pretrained_weights,
+                 trained_encoder_weights=None,
+                 trained_encoder_class=None,
                  name=None, trainable=True,
                  output_attentions=False, 
                  compress_to=None,
                  compress_mode=None,
                  intermediate_size=None,
-                 pooling='cls'):
+                 pooling='cls',
+                 vocab_size=30522,
+                 n_layers=None, 
+                 batch_size=1):
         if name is None:
             cto_str = str(compress_to) + '_' or 'no'
             cmode_str = compress_mode or ''
-            name = f'BatchTransformer-{pretrained_weights}-{cto_str}{cmode_str}_compress'
+            weights_str = pretrained_weights or trained_encoder_weights or 'scratch'
+            weights_str = weights_str.replace('-', '_')
+            layers_str = n_layers or 6
+            name = f'BatchTransformer-{n_layers}layers-{cto_str}{cmode_str}'
+            name = name + f'_compress-{weights_str}'
         super(BatchTransformer, self).__init__(name=name)
-        self.encoder = transformer.from_pretrained(pretrained_weights, 
-                                                   output_attentions=output_attentions)
+        self.encoder = make_triplet_model_from_params(transformer,
+                                                      pretrained_weights,  
+                                                      vocab_size, 
+                                                      n_layers,
+                                                      trained_encoder_weights,
+                                                      trained_encoder_class,
+                                                      output_attentions)
         self.trainable = trainable
         self.output_signature = tf.float32
         self.output_attentions = output_attentions
@@ -61,7 +79,8 @@ class BatchTransformer(keras.Model):
                                                    intermediate_size)
             elif compress_mode == 'vae':
                 self.compressor = VAECompressor(compress_to, 
-                                                intermediate_size)
+                                                intermediate_size, 
+                                                batch_size=batch_size)
         else:
             self.compressor = None
         self.pooling = pooling
@@ -122,13 +141,16 @@ class BatchTransformerFFN(BatchTransformer):
     '''
     def __init__(self,
                  transformer, 
-                 pretrained_weights, 
+                 pretrained_weights,
+                 trained_encoder_weights=None,
+                 trained_encoder_class=None,
                  n_dense=1,
                  dims=[768],
                  activations=['relu'],
                  trainable=False,
-                 name=None, 
-                 **kwargs):
+                 name=None,
+                 n_layers=None,
+                 vocab_size=30522):
 
         if len(dims) != n_dense:
             raise ValueError('length of dims does '
@@ -139,13 +161,17 @@ class BatchTransformerFFN(BatchTransformer):
         self.dims = dims
         self.activations = activations
         if name is None:
-            name = f'''BatchTransformerFFN-{pretrained_weights}_
-                       layers-{n_dense}_
+            weights_str = pretrained_weights or trained_encoder_weights or 'scratch'
+            weights_str = weights_str.replace('-', '_')
+            layers_str = n_layers or 6
+            name = f'''BatchTransformerFFN-{weights_str}_
+                       {layers_str}layers-{n_dense}_
                        dim-{'_'.join([str(d) for d in dims])}_
                        {'_'.join(activations)}'''
-        super().__init__(transformer, pretrained_weights, name, 
-                         trainable)
-        self.dense_layers = keras.Sequential([Dense(dims[i], activations[i], **kwargs)
+        super().__init__(transformer, pretrained_weights, 
+                         trained_encoder_weights, trained_encoder_class,
+                         name, vocab_size, n_layers, trainable)
+        self.dense_layers = keras.Sequential([Dense(dims[i], activations[i])
                                               for i in range(n_dense)])
         self.average_layer = Lambda(average_encodings)
         self.concat_layer = Concatenate(axis=1)

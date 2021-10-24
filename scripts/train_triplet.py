@@ -49,6 +49,8 @@ parser.add_argument('--n-neg', type=int, default=1,
 parser.add_argument('--pretrained-weights', type=str, 
                     default='distilbert-base-uncased',
                     help='Pretrained huggingface model')
+parser.add_argument('--trained-encoder-weights', type=str, default=None,
+                    help='Path to trained encoder weights to load (hf format)')
 parser.add_argument('--compress-to', type=int, default=None,
                     help='Dimensionality of compression head')
 parser.add_argument('--compress-mode', type=str, default=None,
@@ -57,6 +59,10 @@ parser.add_argument('--intermediate-size', type=int, default=None,
                     help='Dimensionality of intermediate layer in head')
 parser.add_argument('--pooling', type=str, default='cls',
                     help='Whether to compress via pooling or other ways')
+parser.add_argument('--vocab-size', type=int, default=30522,
+                    help='Vocab size (relevant if new architecture')
+parser.add_argument('--n-layers', type=int, default=None,
+                    help='Nr layers if not pretrained')
 # Arguments for FFN triplet
 parser.add_argument('--n-dense', type=int, default=None,
                     help='''Number of dense layers to add,
@@ -84,6 +90,7 @@ def _run_training(log_path,
                   n_neg,
                   loss_margin,
                   pretrained_weights,
+                  trained_encoder_weights,
                   compress_to,
                   compress_mode,
                   intermediate_size,
@@ -92,7 +99,9 @@ def _run_training(log_path,
                   dims,
                   activations,
                   update_every,
-                  test_only):
+                  test_only,
+                  vocab_size, 
+                  n_layers):
     
     # Define anchor parameters
     if n_anchor is None:
@@ -153,19 +162,27 @@ def _run_training(log_path,
         if triplet_type == 'standard':
             model = model_class(transformer=TFDistilBertModel,
                                 pretrained_weights=pretrained_weights,
+                                trained_encoder_weights=trained_encoder_weights,
+                                trained_encoder_class=TFDistilBertModel,
                                 trainable=True,
                                 output_attentions=False,
                                 compress_to=compress_to,
                                 compress_mode=compress_mode,
                                 intermediate_size=intermediate_size,
-                                pooling=pooling)
+                                pooling=pooling,
+                                vocab_size=vocab_size,
+                                n_layers=n_layers)
         elif triplet_type == 'ffn':
             model = model_class(transformer=TFDistilBertModel,
                                 pretrained_weights=pretrained_weights,
+                                trained_encoder_weights=trained_encoder_weights,
+                                trained_encoder_class=TFDistilBertModel,
                                 n_dense=n_dense,
                                 dims=dims,
                                 activations=activations,
-                                trainable=False)
+                                trainable=False,
+                                vocab_size=vocab_size,
+                                n_layers=n_layers)
 
     # Initialize trainer
     trainer = Trainer(model=model,
@@ -183,7 +200,7 @@ def _run_training(log_path,
                       eval_before_training=True,
                       test_steps=n_test_steps,
                       update_every=update_every)
-
+    
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
@@ -197,7 +214,7 @@ def _run_training(log_path,
                         n_pos, 
                         n_neg],
                 batch_size=global_batch_size,
-                min_anchor=n_anchor)
+                min_anchors=n_anchor)
     
 
 if __name__=='__main__':
@@ -215,6 +232,7 @@ if __name__=='__main__':
                   args.n_neg,
                   args.loss_margin,
                   args.pretrained_weights,
+                  args.trained_encoder_weights,
                   args.compress_to,
                   args.compress_mode,
                   args.intermediate_size,
@@ -223,4 +241,6 @@ if __name__=='__main__':
                   args.dims,
                   args.activations,
                   args.update_every,
-                  args.test_only)
+                  args.test_only,
+                  args.vocab_size,
+                  args.n_layers)

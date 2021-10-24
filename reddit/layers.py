@@ -1,5 +1,5 @@
-from tensorflow import keras
 import tensorflow as tf
+from tensorflow.keras import layers
 from reddit.utils import sampling_vae
 from tensorflow.keras.layers import (Dense,
                                      Concatenate,
@@ -12,7 +12,7 @@ from transformers.modeling_tf_utils import get_initializer
 from transformers.models.distilbert.modeling_tf_distilbert import TFMultiHeadSelfAttention
 
 
-class SimpleCompressor(keras.layers.Layer):
+class SimpleCompressor(layers.Layer):
     ''' Compresses encodings through relu layer(s)'''
     def __init__(self, compress_to, intermediate_size=None):
         dropout = Dropout(.20)
@@ -23,19 +23,23 @@ class SimpleCompressor(keras.layers.Layer):
             layers = [dropout, intermediate, compress]
         else:
             layers = [dropout, compress]
-        self.compressor = keras.Sequential(layers)
+        self.compressor = tf.keras.models.Sequential(layers)
+        super().__init__()
 
     def call(self, encodings):
         out = self.compressor(encodings)
         return out
 
 
-class VAECompressor(keras.layers.Layer):
+class VAECompressor(layers.Layer):
     ''' Compresses encodings through VAE '''
     def __init__(self, 
                  compress_to, 
                  intermediate_size=None,
-                 encoder_dim=768):
+                 encoder_dim=768,
+                 batch_size=1):
+        self.compress_to = compress_to
+        self.batch_size = batch_size
         if intermediate_size:
             self.encoder_int = Dense(intermediate_size, activation='relu')
         else:
@@ -48,6 +52,7 @@ class VAECompressor(keras.layers.Layer):
         else:
             self.decoder_int = None
         self.outlayer = Dense(encoder_dim, activation='relu')
+        super().__init__()
     
     def call(self, encodings):
         if self.encoder_int:
@@ -55,15 +60,15 @@ class VAECompressor(keras.layers.Layer):
         else:
             x = encodings
         zm = self.z_mean(x)
-        zls = self.log_sigma(x)
-        x = self.z([zm, zls])
+        zls = self.z_log_sigma(x)
+        x = self.z([zm, zls, self.compress_to, self.batch_size])
         if self.decoder_int:
             x = self.decoder_int(x)
         out = self.outlayer(x)
         return out
 
 
-class MLMHead(keras.layers.Layer):
+class MLMHead(layers.Layer):
     ''' Wraps mlm head for tidier model '''
     def __init__(self, mlm_model, reset=True):
         super(MLMHead, self).__init__()
@@ -87,7 +92,7 @@ class MLMHead(keras.layers.Layer):
         return x
     
     
-class BatchTransformerContextAggregator(keras.layers.Layer):
+class BatchTransformerContextAggregator(layers.Layer):
     ''' Aggregation layer for standard batch transformer encoder 
     Args:
         agg_fn (str): whether to aggregate by sum (add) or concatenation
@@ -106,7 +111,7 @@ class BatchTransformerContextAggregator(keras.layers.Layer):
         super(BatchTransformerContextAggregator, self).__init__()
         assert agg_fn in ['add', 'concat']
         self.agg_layer = Add() if agg_fn == 'add' else Concatenate(axis=-1)
-        self.post_agg_dense = keras.Sequential([Dense(units=dims[i], 
+        self.post_agg_dense = tf.keras.models.Sequential([Dense(units=dims[i], 
                                                       activation=dense_act)
                                                 for i in range(add_dense)] + 
                                                 [Dense(units=relu_dims, activation='relu')])
@@ -128,7 +133,7 @@ class BiencoderSimpleAggregator(BatchTransformerContextAggregator):
         return out
 
             
-class BiencoderAttentionAggregator(keras.layers.Layer):
+class BiencoderAttentionAggregator(layers.Layer):
     ''' Attention aggregator for biencoder
     Args:
         num_heads (int): number of attention heads
@@ -157,7 +162,7 @@ class BiencoderAttentionAggregator(keras.layers.Layer):
             return att_tgt
     
     
-class HierarchicalAttentionAggregator(keras.layers.Layer):
+class HierarchicalAttentionAggregator(layers.Layer):
     ''' Hierarchical attention layer
     Args:
         n_contexts (int): number of contexts
@@ -186,7 +191,7 @@ class HierarchicalAttentionAggregator(keras.layers.Layer):
         return hidden_state
 
 
-class ContextPooler(keras.layers.Layer):
+class ContextPooler(layers.Layer):
     ''' Context pooler for simple batch transformer for context MLM '''
     def __init__(self):
         super(ContextPooler, self).__init__()

@@ -2,8 +2,9 @@ import tensorflow as tf
 
 
 def filter_triplet_by_n_anchors(x, min_anchors):
-    ''' Filtering function to remove stuff which is too short to be masked '''
-    return tf.math.greater(x['n_anchor'], min_anchors-1)
+    ''' Remove stuff that has too few anchors '''
+    n_anch = tf.math.count_nonzero(tf.reduce_sum(x['iids'], axis=1))
+    return tf.math.greater(n_anch, min_anchors-1)
 
 
 def pad_and_stack_triplet(dataset, pad_to=[20,1,1], min_anchors=None):
@@ -17,8 +18,6 @@ def pad_and_stack_triplet(dataset, pad_to=[20,1,1], min_anchors=None):
             to pad to, i.e., [n_anchor_posts, n_positive_posts,
             n_negative_posts]
     '''
-    if min_anchors:
-        dataset = dataset.filter(lambda x: filter_triplet_by_n_anchors(x, min_anchors))
     dataset = dataset.map(lambda x: {'iids': x['iids'][:pad_to[0],:], 
                                      'amask': x['amask'][:pad_to[0],:],
                                      'pos_iids': x['pos_iids'][:pad_to[1],:],
@@ -45,6 +44,9 @@ def pad_and_stack_triplet(dataset, pad_to=[20,1,1], min_anchors=None):
                                                          [[0,pad_to[2]-tf.shape(x['neg_amask'])[0]],
                                                           [0,0]]),
                                      'author_id': x['author_id']})
+    if min_anchors:
+        dataset = dataset.filter(lambda x: filter_triplet_by_n_anchors(x, 
+                                                                       min_anchors))
     dataset = dataset.map(lambda x: {'input_ids': tf.concat([x['neg_iids'],
                                                              x['pos_iids'],
                                                              x['iids']], axis=0),

@@ -1,7 +1,35 @@
 import tensorflow as tf
-from tensorflow import keras
-from transformers import TFDistilBertModel
 from pathlib import Path
+
+
+def make_triplet_model_from_params(transformer,
+                                   pretrained_weights,  
+                                   vocab_size, 
+                                   n_layers,
+                                   trained_encoder_weights,
+                                   trained_encoder_class,
+                                   output_attentions):
+    ''' Initializes a model given info on transformer class and whether to 
+        import weights (if not, also uses info on vocab_size, n_layers etc)
+    Args:
+        transformer (transformers.Model): transformer class for mlm model
+        pretrained_weights (str): path or id of pretrained to import
+        vocab_size (int): vocab_size (if not pretrained)
+        n_layers (int): n layers for encoder
+        trained_encoder_weights (str): path to trained encoder weights
+        trained_encoder_class (transformers.Model): class for encoder
+    '''
+    if pretrained_weights is None:
+        config = transformer.config_class(vocab_size=vocab_size, 
+                                          n_layers=n_layers)
+        model = transformer(config)
+    else:
+        model = transformer.from_pretrained(pretrained_weights)
+    if trained_encoder_weights and trained_encoder_class:
+        load_weights_from_huggingface(model=model, 
+                                      transformers_model_class=trained_encoder_class,
+                                      weights_path=trained_encoder_weights)
+    return model
 
 
 def make_mlm_model_from_params(transformer,
@@ -27,14 +55,14 @@ def make_mlm_model_from_params(transformer,
     else:
         mlm_model = transformer.from_pretrained(pretrained_weights)
     if trained_encoder_weights and trained_encoder_class:
-        load_trained_encoder_weights(model=mlm_model, 
-                                     transformers_model_class=trained_encoder_class,
-                                     weights_path=trained_encoder_weights,
-                                     layer=0)
+        load_weights_from_huggingface(model=mlm_model, 
+                                      transformers_model_class=trained_encoder_class,
+                                      weights_path=trained_encoder_weights,
+                                      layer=0)
     return mlm_model
 
 
-def freeze_encoder(encoder, freeze_param):
+def freeze_encoder_weights(encoder, freeze_param):
     ''' Freezes encoder layer, given an encoder and a list of 
         layers to freeze (no freezing if freeze_param is False or None) '''
     if not freeze_param:
@@ -43,18 +71,17 @@ def freeze_encoder(encoder, freeze_param):
         for fl in freeze_param:
             encoder._layers[1]._layers[0][int(fl)]._trainable = False
         encoder._layers[0]._trainable = False # freeze embeddings
-        
 
 
 def dense_to_str(add_dense, dims):
     ''' Converts info on # dense layers to add and dimensions for 
         each to string (used for model ids)
     '''
-    if add_dense == 0:
-        dims_str = 'none'
+    if not dims:
+        dims_str = '0_dense'
     else:
         assert len(dims) == add_dense
-        dims_str = '_'.join([str(d) for d in dims])
+        dims_str = '_'.join([str(d) for d in dims]) + '_dense'
     return dims_str
 
 
@@ -62,7 +89,7 @@ def save_encoder_huggingface(ckpt_path,
                              model=None,
                              reddit_model_class=None,
                              transformers_model_class=None, 
-                             transformer_weights=None,
+                             transformers_weights=None,
                              outpath=None):
     ''' Saves weights in format compatible with huggingface 
         transformers' from_pretrained method
@@ -97,7 +124,7 @@ def load_weights_from_huggingface(model,
         way to do this, but this creates a second model on the fly and
         gets the weights, then transfers them to the target model
     Args:
-        transformers_model: transformer model (destination for weights import)
+        model: transformer model (destination for weights import)
         transformers_model_class: transformer model to import weights from (source 
             for weights import)
         weights_path: path to read the weights from (or name of pretrained model)

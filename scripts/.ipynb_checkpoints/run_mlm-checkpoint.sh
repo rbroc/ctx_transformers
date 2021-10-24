@@ -1,47 +1,26 @@
 #!/bin/sh
 
-# Run simple mlm
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type single --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
+for grouping in subreddit
+do
+python3 train_mlm.py --log-path 10context_biencoder_3_1_attention --dataset-name 10context_large --context-type $grouping --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 10 --context-pooling cls --add-dense 0 --dims 768 --update-every 8 --freeze-encoder-false
+done
 
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type single --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5
+# NEXT (Weds-Fri)
+# Make classification model for triplet loss
+# Make triplet loss script
+# Make datasets for triplet loss
+# Support params for triplet loss
 
-# Run with author as context
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type author --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 0
+# ENH
+# Test a bunch
+# Make sure add_dense supports list always
+# Add dropout
+# Add model loading (later)
+# Send to Tal
 
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type author --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense before_norm
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type author --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense after_norm
-
-# With author as context and trained model
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type author --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 0 --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type author --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense before_norm --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type author --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense after_norm --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-# Same for subreddit
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type subreddit --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 0
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type subreddit --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense before_norm
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type subreddit --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense after_norm
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type subreddit --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 0 --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type subreddit --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense before_norm --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type subreddit --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense after_norm --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-# Same for random
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type random --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 0
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type random --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense before_norm
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type random --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense after_norm
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type random --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 0 --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-# NOT RUN
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type random --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense before_norm --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
-
-#python3 train_mlm.py --log-path 3context_random_200k --dataset-name 3context_random --context-type random --per-replica-batch-size 4 --dataset-size 200000 --n-epochs 5 --add-dense 3 --where-dense after_norm --load-encoder-weights ../logs/triplet/10anchor_1pos_1neg_random/huggingface
+# COMMENTS
+# How to compare to no-context MLM?
+# Could consider running pretrained
+# Consider re-running hierarchical
+# Which combos to run?
+# Make sure to make notes of latest versions run
