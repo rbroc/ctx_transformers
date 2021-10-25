@@ -55,13 +55,15 @@ class BatchTransformer(keras.Model):
                  n_layers=None, 
                  batch_size=1):
         if name is None:
-            cto_str = str(compress_to) + '_' or 'no'
+            cto_str = str(compress_to) + '_' if compress_to else 'no'
             cmode_str = compress_mode or ''
+            int_str = str(intermediate_size) + '_' if intermediate_size else 'no'
             weights_str = pretrained_weights or trained_encoder_weights or 'scratch'
             weights_str = weights_str.replace('-', '_')
             layers_str = n_layers or 6
-            name = f'BatchTransformer-{n_layers}layers-{cto_str}{cmode_str}'
-            name = name + f'_compress-{weights_str}'
+            name = f'BatchTransformer-{layers_str}layers-{cto_str}{cmode_str}'
+            name = name + f'-{int_str}int-{weights_str}'
+            print(name)
         super(BatchTransformer, self).__init__(name=name)
         self.encoder = make_triplet_model_from_params(transformer,
                                                       pretrained_weights,  
@@ -164,10 +166,10 @@ class BatchTransformerFFN(BatchTransformer):
             weights_str = pretrained_weights or trained_encoder_weights or 'scratch'
             weights_str = weights_str.replace('-', '_')
             layers_str = n_layers or 6
-            name = f'''BatchTransformerFFN-{weights_str}_
+            name = f'''BatchTransformerFFN-
                        {layers_str}layers-{n_dense}_
                        dim-{'_'.join([str(d) for d in dims])}_
-                       {'_'.join(activations)}'''
+                       {'_'.join(activations)}-{weights_str}'''
         super().__init__(transformer, pretrained_weights, 
                          trained_encoder_weights, trained_encoder_class,
                          name, vocab_size, n_layers, trainable)
@@ -438,7 +440,7 @@ class BiencoderForContextMLM(keras.Model):
     '''
     def __init__(self, 
                  transformer,
-                 pretrained_token_encoder_weights,
+                 pretrained_token_encoder_weights=None,
                  trained_token_encoder_weights=None,
                  trained_token_encoder_class=None,
                  name=None,
@@ -491,7 +493,7 @@ class BiencoderForContextMLM(keras.Model):
         
         # Define aggregation module
         if self.aggregate != 'attention':
-            self.context_pooler = BiencoderContextPooler()
+            self.context_pooler = BiencoderContextPooler() # 
             self.aggregator = BiencoderSimpleAggregator(agg_fn=self.aggregate, 
                                                         add_dense=add_dense,
                                                         dims=dims)
@@ -500,19 +502,19 @@ class BiencoderForContextMLM(keras.Model):
 
             
     def _encode_context(self, example):
-        ctx = self.context_encoder(input_ids=example['input_ids'][:,1:,:],
-                                   attention_mask=example['attention_mask'][:,1:,:])
+        ctx = self.context_encoder(input_ids=example['input_ids'][1:,:], # bs x n_ctx x 512
+                                   attention_mask=example['attention_mask'][1:,:]) # bs x n_ctx x 512
         return ctx.last_hidden_state
     
             
     def call(self, input):
-        target = self.encoder(input_ids=input['input_ids'][:,0,:], 
-                              attention_mask=input['attention_mask'][:,0,:]).last_hidden_state
-        contexts = tf.vectorized_map(self._encode_context, elems=input)[:,:,0,:]
+        target = self.token_encoder(input_ids=input['input_ids'][:,0,:], # input: bs x 512
+                                    attention_mask=input['attention_mask'][:,0,:]).last_hidden_state # input: bs x 512
+        contexts = tf.vectorized_map(self._encode_context, elems=input)[:,:,0,:] # bs x n_ctx x 768
         if self.aggregate != 'attention':
             contexts = self.context_pooler(contexts, self.n_tokens)
         target = self.aggregator(target, contexts)
-        logits = self.mlm_model(target)
+        logits = self.mlm_head(target)
         return logits
 
     

@@ -109,7 +109,7 @@ class ModelCheckpoint(Checkpoint):
     def __init__(self, trainer, device, path='..'):
         super().__init__(trainer, 'checkpoint', path)
         self.options = tf.train.CheckpointOptions(device)
-        self.moptions = tf.saved_model.SaveOptions(experimental_io_device=device) # added
+        self.moptions = tf.saved_model.SaveOptions(experimental_io_device=device)
         if self.trainer.load_epoch is not None:
             self._load()
 
@@ -131,7 +131,7 @@ class ModelCheckpoint(Checkpoint):
         file_pattern = f'batch-{batch}-of-{self.trainer.steps_per_epoch}'
         out_pattern = epoch_dir / file_pattern
         self.trainer.model.save_weights(filepath=out_pattern, options=self.options)
-        self.trainer.model.save(filepath=out_pattern, options=self.moptions) # ADDED
+        self.trainer.model.save(filepath=out_pattern, options=self.moptions)
 
 
 class OptimizerCheckpoint(Checkpoint):    

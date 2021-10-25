@@ -111,10 +111,12 @@ class BatchTransformerContextAggregator(layers.Layer):
         super(BatchTransformerContextAggregator, self).__init__()
         assert agg_fn in ['add', 'concat']
         self.agg_layer = Add() if agg_fn == 'add' else Concatenate(axis=-1)
+        if add_dense is None:
+            add_dense = 0
         self.post_agg_dense = tf.keras.models.Sequential([Dense(units=dims[i], 
-                                                      activation=dense_act)
-                                                for i in range(add_dense)] + 
-                                                [Dense(units=relu_dims, activation='relu')])
+                                                                activation=dense_act)
+                                                          for i in range(add_dense)] + 
+                                                         [Dense(units=relu_dims, activation='relu')])
         self.post_agg_normalizer = LayerNormalization(epsilon=1e-12)
         
     def call(self, hidden_state, norm_ctx):
@@ -213,9 +215,10 @@ class BiencoderContextPooler(ContextPooler):
         super(BiencoderContextPooler, self).__init__()
         self.normalizer = LayerNormalization(epsilon=1e-12)
     
-    def call(self, contexts, n_tokens):
-        ctx = tf.reduce_mean(contexts, axis=1, keepdims=True)
+    def call(self, contexts, n_tokens): 
+        # input bs x n_ctx x 768
+        ctx = tf.reduce_mean(contexts, axis=1, keepdims=True) # bs x 1 x 768
         ctx = self.normalizer(ctx)
-        ctx = tf.repeat(ctx, n_tokens, axis=1)
+        ctx = tf.repeat(ctx, n_tokens, axis=1) # bs x 512 x 768
         return ctx
     

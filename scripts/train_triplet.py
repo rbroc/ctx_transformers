@@ -60,7 +60,7 @@ parser.add_argument('--intermediate-size', type=int, default=None,
 parser.add_argument('--pooling', type=str, default='cls',
                     help='Whether to compress via pooling or other ways')
 parser.add_argument('--vocab-size', type=int, default=30522,
-                    help='Vocab size (relevant if new architecture')
+                    help='Vocab size (relevant if newn architecture')
 parser.add_argument('--n-layers', type=int, default=None,
                     help='Nr layers if not pretrained')
 # Arguments for FFN triplet
@@ -136,7 +136,6 @@ def _run_training(log_path,
     pattern = str(DATA_PATH / dataset_name / 'train'/ 'batch*')
     fs_train = glob.glob(pattern)
     ds = load_tfrecord(fs_train, deterministic=True, ds_type='triplet')
-    # 
     ds_train, ds_val, _ = split_dataset(ds, 
                                         size=dataset_size, 
                                         perc_train=.8, 

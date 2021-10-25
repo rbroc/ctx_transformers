@@ -60,12 +60,15 @@ class TripletLossBase(TripletLoss):
             a_enc = encodings[:, pos_idx:pos_idx+self.n_anc, :]
         else:
             a_enc = encodings[:, pos_idx:, :]
-        dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
         avg_a_enc = tf.squeeze(average_encodings(a_enc), axis=1)
         avg_n_enc = tf.squeeze(average_encodings(n_enc), axis=1)
         avg_p_enc = tf.squeeze(average_encodings(p_enc), axis=1)
         dist_pos = tf.reduce_sum(tf.square(avg_a_enc - avg_p_enc), axis=1)
         dist_neg = tf.reduce_sum(tf.square(avg_a_enc - avg_n_enc), axis=1)
+        if self.n_anc > 1:
+            dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
+        else:
+            dist_anch = tf.zeros(shape=dist_pos.shape)
         metric = tf.cast(tf.greater(dist_neg, dist_pos), tf.float32)
         loss = self._loss_function(dist_pos, dist_neg, dist_anch)
         outs = [tf.reduce_mean(o, axis=0) 
