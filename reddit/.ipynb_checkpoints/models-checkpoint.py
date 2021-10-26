@@ -61,8 +61,8 @@ class BatchTransformer(keras.Model):
             weights_str = pretrained_weights or trained_encoder_weights or 'scratch'
             weights_str = weights_str.replace('-', '_')
             layers_str = n_layers or 6
-            name = f'BatchTransformer-{layers_str}layers-{cto_str}{cmode_str}'
-            name = name + f'-{int_str}int-{weights_str}'
+            name = f'BatchTransformer-{layers_str}layers-{cto_str}{cmode_str}dense'
+            name = name + f'-{int_str}int-{pooling}-{weights_str}'
         super(BatchTransformer, self).__init__(name=name)
         self.encoder = make_triplet_model_from_params(transformer,
                                                       pretrained_weights,  
@@ -91,22 +91,31 @@ class BatchTransformer(keras.Model):
                              axis=-1, keepdims=True)
         mask = tf.cast(mask, tf.float32)
         mask = tf.abs(tf.subtract(mask, 1.))
-        output = self.encoder(
-                              input_ids=example['input_ids'],
-                              attention_mask=example['attention_mask']
-                              )
+        output = self.encoder(input_ids=example['input_ids'],
+                              attention_mask=example['attention_mask'])
         if self.pooling == 'cls':
+            # cls token
             encoding = output.last_hidden_state[:,0,:]
         elif self.pooling == 'mean':
+            # Mean of defined tokens
             encoding = tf.reduce_sum(output.last_hidden_state[:,1:,:], axis=1)
-            n_tokens = tf.reduce_sum(example['attention_mask'], axis=1, keepdims=1)
+            n_tokens = tf.reduce_sum(example['attention_mask'], axis=-1, keepdims=True)
             encoding = encoding / tf.cast(n_tokens, tf.float32)
         elif self.pooling == 'random':
-            n_nonzero = tf.reduce_sum(example['attention_mask'], axis=-1)
-            idxs = tf.map_fn(lambda x: tf.random.uniform(shape=[], minval=1,
-                             maxval=x, dtype=tf.int32), n_nonzero)
-            encoding = tf.gather(output.last_hidden_state, idxs, 
-                                  axis=1, batch_dims=1)
+            # Pick a random token
+            n_nonzero = tf.reduce_sum(example['attention_mask'], axis=-1, keepdims=True)
+            fill_zero_mask = tf.cast(tf.multiply(tf.abs(tf.subtract(mask, 1.)), 2.), tf.int32)
+            n_nonzero = tf.add(n_nonzero, fill_zero_mask) # 10 x 1
+            idxs = tf.map_fn(lambda x: tf.random.uniform(shape=[], 
+                                                         minval=1,
+                                                         maxval=x[0],
+                                                         dtype=tf.int32), 
+                             n_nonzero)
+            idxs = tf.one_hot(idxs, depth=512)
+            idxs = tf.expand_dims(idxs, axis=-1)
+            encoding = tf.multiply(output.last_hidden_state, idxs)
+            encoding = tf.reduce_sum(encoding, axis=1)
+            
         attentions = output.attentions if self.output_attentions else None
         masked_encoding = tf.multiply(encoding, mask)
         return masked_encoding, attentions
@@ -122,6 +131,43 @@ class BatchTransformer(keras.Model):
         else:
             return encodings
 
+
+class BatchTransformerClassifier(BatchTransformer):
+    ''' Adds classification layer '''
+    def __init__(self, nposts,
+                 transformer, 
+                 pretrained_weights,
+                 trained_encoder_weights=None,
+                 trained_encoder_class=None,
+                 name=None, 
+                 trainable=True,
+                 compress_to=None,
+                 compress_mode=None,
+                 intermediate_size=None,
+                 pooling='cls',
+                 vocab_size=30522,
+                 n_layers=None, 
+                 batch_size=1):
+        super().__init__(transformer, pretrained_weights,
+                         trained_encoder_weights,
+                         trained_encoder_class,
+                         name, trainable, False,
+                         compress_to, compress_mode, intermediate_size,
+                         pooling, vocab_size, n_layers, batch_size)
+        self.dense = Dense(units=1, activations='sigmoid')
+        self.nposts = nposts
+
+    def call(self, input):
+        encodings = super().call(self, input)
+        enc_1 = encodings[:, :self.nposts, :]
+        enc_2 = encodings[:, self.nposts:, :]
+        avg_enc_1 = tf.reduce_mean(enc_1, axis=1) # bs x 768
+        avg_enc_2 = tf.reduce_mean(enc_2, axis=1)
+        dist = tf.sqrt(tf.reduce_sum((avg_enc_1 - avg_enc_2)**2, 
+                                      axis=-1))
+        logits = self.dense(dist)
+        return logits
+        
 
 class BatchTransformerFFN(BatchTransformer):
     ''' Batch transformer with added dense layers

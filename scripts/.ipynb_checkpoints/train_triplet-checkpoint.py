@@ -103,15 +103,12 @@ def _run_training(log_path,
                   vocab_size, 
                   n_layers):
     
-    # Define anchor parameters
-    if n_anchor is None:
-        n_anchor = pad_anchor
-
     # Define type of training
     if triplet_type == 'standard':
         model_class = BatchTransformer
         loss = TripletLossBase(margin=loss_margin, 
-                               n_pos=n_pos, n_neg=n_neg,
+                               n_pos=n_pos, 
+                               n_neg=n_neg,
                                n_anc=n_anchor)
     elif triplet_type == 'ffn':
         model_class = BatchTransformerFFN
@@ -144,19 +141,23 @@ def _run_training(log_path,
     
     # Compute number of batches
     global_batch_size = len(logical_gpus) * per_replica_batch_size
-    n_train_examples = len([e for e in ds_train 
-                            if filter_triplet_by_n_anchors(e, n_anchor)])
-    n_test_examples = len([e for e in ds_val 
-                           if filter_triplet_by_n_anchors(e, n_anchor)])
+    if n_anchor:
+        n_train_examples = len([e for e in ds_train 
+                                if filter_triplet_by_n_anchors(e, n_anchor)])
+        n_test_examples = len([e for e in ds_val 
+                               if filter_triplet_by_n_anchors(e, n_anchor)])
+    else:
+        n_train_examples = len([e for e in ds_train])
+        n_test_examples = len([e for e in ds_val])
     print(f'{n_train_examples}, n test examples: {n_test_examples}')
     n_train_steps = int(n_train_examples / global_batch_size)
     n_test_steps = int(n_test_examples / global_batch_size)
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        optimizer = create_optimizer(2e-5, # allow edit
-                                     num_train_steps=n_train_steps * n_epochs, # allow edit
-                                     num_warmup_steps=n_train_steps / 10) # allow edit
+        optimizer = create_optimizer(2e-5, # allow params edit
+                                     num_train_steps=n_train_steps * n_epochs,
+                                     num_warmup_steps=10000) # could make it dependent on length of edit
         
         if triplet_type == 'standard':
             model = model_class(transformer=TFDistilBertModel,
@@ -196,14 +197,14 @@ def _run_training(log_path,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=True,
+                      eval_before_training=False, # edited
                       test_steps=n_test_steps,
                       update_every=update_every)
     
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=True,
+                shuffle=False, # edited
                 transform=triplet_transform,
                 transform_test=True,
                 test_only=test_only,
@@ -212,7 +213,7 @@ def _run_training(log_path,
                         n_pos, 
                         n_neg],
                 batch_size=global_batch_size,
-                min_anchors=n_anchor)
+                n_anchor=n_anchor)
     
 
 if __name__=='__main__':

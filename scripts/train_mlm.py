@@ -166,7 +166,7 @@ def _run_training(mlm_type,
     with strategy.scope():
         optimizer = create_optimizer(2e-5, # allow edit
                                      num_train_steps=n_train_steps * n_epochs, # allow edit
-                                     num_warmup_steps=n_train_steps / 10) # allow edit
+                                     num_warmup_steps=10000) # could change
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,
@@ -230,7 +230,7 @@ def _run_training(mlm_type,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False,
+                      eval_before_training=True,
                       test_steps=n_test_steps,
                       update_every=update_every)
 

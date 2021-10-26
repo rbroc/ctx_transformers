@@ -1,4 +1,5 @@
 from reddit.utils import (pad_and_stack_triplet,
+                          stack_classification,
                           mask_and_stack_mlm,
                           prepare_agg, prepare_posts)
 
@@ -6,7 +7,7 @@ from reddit.utils import (pad_and_stack_triplet,
 def triplet_transform(dataset, 
                       pad_to=[20,1,1],
                       batch_size=4, 
-                      min_anchors=20):
+                      n_anchor=None):
     '''Transform pipeline for triplet dataset
     Args:
         dataset: dataset to transform
@@ -17,8 +18,19 @@ def triplet_transform(dataset,
     '''
     dataset = pad_and_stack_triplet(dataset, 
                                     pad_to, 
-                                    min_anchors)
+                                    n_anchor)
     return dataset.batch(batch_size, drop_remainder=True)
+
+
+def classification_transform(dataset,
+                             batch_size=4):
+    '''Transform pipeline for classification dataset
+    Args:
+        dataset: dataset to transform
+    '''
+    dataset = stack_classification(dataset)
+    return dataset.batch(batch_size, drop_remainder=True)
+
 
 
 def mlm_transform(dataset, 

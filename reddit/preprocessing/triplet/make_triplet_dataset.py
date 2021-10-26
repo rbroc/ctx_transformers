@@ -57,7 +57,7 @@ if __name__=="__main__":
     args = parser.parse_args()
     OUTPATH = DATASET_PATH / str(args.dataset_name)
     OUTPATH.mkdir(exist_ok=True, parents=True)
-    fs = glob.glob(str(TRIPLET_PATH/ args.dataset_name / '*'))
+    fs = glob.glob(str(TRIPLET_PATH / args.dataset_name / '*'))
     tknzr = AutoTokenizer.from_pretrained(args.tokenizer_weights)
     pool = Pool(processes=args.n_cores)
     pool.starmap(make_dataset, zip(fs,

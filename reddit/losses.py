@@ -40,7 +40,7 @@ class TripletLossBase(TripletLoss):
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
     '''
-    def __init__(self, margin, n_neg=1, n_pos=1, n_anc=None, 
+    def __init__(self, margin, n_neg=1, n_pos=1, n_anc=None,
                  custom_loss_fn=None, name=None):
         super().__init__(margin, custom_loss_fn, name)
         self.n_neg = n_neg
@@ -65,8 +65,9 @@ class TripletLossBase(TripletLoss):
         avg_p_enc = tf.squeeze(average_encodings(p_enc), axis=1)
         dist_pos = tf.reduce_sum(tf.square(avg_a_enc - avg_p_enc), axis=1)
         dist_neg = tf.reduce_sum(tf.square(avg_a_enc - avg_n_enc), axis=1)
-        if self.n_anc > 1:
-            dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
+        if (self.n_anc is None) or (self.n_anc > 1):
+            dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, 
+                                          elems=a_enc)
         else:
             dist_anch = tf.zeros(shape=dist_pos.shape)
         metric = tf.cast(tf.greater(dist_neg, dist_pos), tf.float32)
@@ -74,7 +75,7 @@ class TripletLossBase(TripletLoss):
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg, dist_anch]]
         return outs
-
+    
 
 class TripletLossFFN(TripletLoss):
     ''' Triplet loss for batch transformer with FFN head
@@ -97,6 +98,23 @@ class TripletLossFFN(TripletLoss):
         loss = self._loss_function(dist_pos, dist_neg)
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg]]
+        return outs
+
+    
+class ClassificationLoss:
+    ''' Classification loss for siamese network '''
+    def __init__(self, name=None):
+        super().__init__()
+        self.name = name or 'classification-loss'
+        self.loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=False,
+                                                          reduction=tf.keras.losses.Reduction.NONE)
+    
+    def __call__(self, probs, labels):
+        losses = self.loss_fn(labels, probs)
+        is_same = tf.cast(tf.greater(losses, .5), tf.float32)
+        metric = is_same == labels
+        outs = [tf.reduce_mean(o, axis=0) 
+                for o in [loss, metric]]
         return outs
 
     
