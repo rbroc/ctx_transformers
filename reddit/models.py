@@ -154,17 +154,17 @@ class BatchTransformerClassifier(BatchTransformer):
                          name, trainable, False,
                          compress_to, compress_mode, intermediate_size,
                          pooling, vocab_size, n_layers, batch_size)
-        self.dense = Dense(units=1, activations='sigmoid')
+        self.dense = Dense(units=1, activation='sigmoid')
         self.nposts = nposts
 
     def call(self, input):
-        encodings = super().call(self, input)
-        enc_1 = encodings[:, :self.nposts, :]
+        encodings = super().call(input)
+        enc_1 = encodings[:, :self.nposts, :] # bs x n posts x 768
         enc_2 = encodings[:, self.nposts:, :]
         avg_enc_1 = tf.reduce_mean(enc_1, axis=1) # bs x 768
-        avg_enc_2 = tf.reduce_mean(enc_2, axis=1)
-        dist = tf.sqrt(tf.reduce_sum((avg_enc_1 - avg_enc_2)**2, 
-                                      axis=-1))
+        avg_enc_2 = tf.reduce_mean(enc_2, axis=1) # bs x 768
+        sqdiff = (avg_enc_1 - avg_enc_2)**2 # bs x 768
+        dist = tf.sqrt(tf.reduce_sum(sqdiff, axis=-1, keepdims=True))
         logits = self.dense(dist)
         return logits
         

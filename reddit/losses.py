@@ -110,9 +110,10 @@ class ClassificationLoss:
                                                           reduction=tf.keras.losses.Reduction.NONE)
     
     def __call__(self, probs, labels):
-        losses = self.loss_fn(labels, probs)
-        is_same = tf.cast(tf.greater(losses, .5), tf.float32)
-        metric = is_same == labels
+        loss = self.loss_fn(labels, probs)
+        is_same = tf.cast(tf.greater(probs, .5), tf.float32)
+        metric = is_same == tf.cast(labels, tf.float32)
+        metric = tf.cast(metric, tf.float32)
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric]]
         return outs
