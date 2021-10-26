@@ -78,10 +78,10 @@ def dense_to_str(add_dense, dims):
         each to string (used for model ids)
     '''
     if not dims:
-        dims_str = '0_dense'
+        dims_str = '0'
     else:
         assert len(dims) == add_dense
-        dims_str = '_'.join([str(d) for d in dims]) + '_dense'
+        dims_str = '_'.join([str(d) for d in dims])
     return dims_str
 
 

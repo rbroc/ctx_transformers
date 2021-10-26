@@ -11,7 +11,7 @@ from reddit.utils import (average_encodings,
 from reddit.layers import (BatchTransformerContextAggregator,
                            BiencoderSimpleAggregator,
                            BiencoderAttentionAggregator,
-                           HierarchicalAttentionAggregator,
+                           HierarchicalTransformerBlock,
                            ContextPooler,
                            BiencoderContextPooler,
                            MLMHead, 
@@ -63,7 +63,6 @@ class BatchTransformer(keras.Model):
             layers_str = n_layers or 6
             name = f'BatchTransformer-{layers_str}layers-{cto_str}{cmode_str}'
             name = name + f'-{int_str}int-{weights_str}'
-            print(name)
         super(BatchTransformer, self).__init__(name=name)
         self.encoder = make_triplet_model_from_params(transformer,
                                                       pretrained_weights,  
@@ -287,6 +286,7 @@ class BatchTransformerForContextMLM(keras.Model):
                  reset_head=False,
                  add_dense=None,
                  dims=None,
+                 activations=None,
                  n_tokens=512,
                  aggregate='concatenate',
                  n_contexts=10,
@@ -302,8 +302,8 @@ class BatchTransformerForContextMLM(keras.Model):
         dims_str = dense_to_str(add_dense, dims)
         if name is None:
             mtype = 'BatchTransformerForContextMLM'
-            dense_args = f'dense{add_dense}-densedim{dims_str}'
-            ctx_args = f'agg{aggregate}'
+            dense_args = f'{add_dense}dense-{dims_str}'
+            ctx_args = f'{aggregate}'
             name = f'{mtype}-{freeze_str}-{reset_str}-{n_layers}layers' \
                    f'-{dense_args}-{weights_str}-{ctx_args}'
         super(BatchTransformerForContextMLM, self).__init__(name=name)
@@ -324,10 +324,11 @@ class BatchTransformerForContextMLM(keras.Model):
         self.encoder = mlm_model.layers[0]
         freeze_encoder_weights(self.encoder, freeze_encoder)
         self.mlm_head = MLMHead(mlm_model, reset=reset_head)
-        self.context_pooler = BatchTransformerContextPooler()
+        self.context_pooler = ContextPooler()
         self.aggregator = BatchTransformerContextAggregator(agg_fn=self.aggregate, 
                                                             add_dense=add_dense,
-                                                            dims=dims)
+                                                            dims=dims,
+                                                            activations=activations)
    
 
     def _encode_batch(self, example):
@@ -372,7 +373,7 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         # Name
         if name is None:
             mtype = 'HierarchicalTransformerForContextMLM'
-            name = f'{mtype}-{n_layers}'
+            name = f'{mtype}-{n_layers}layers'
         super(HierarchicalTransformerForContextMLM, self).__init__(name=name)
         
         # Some useful parameters
@@ -383,32 +384,33 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         # Define components
         config = transformer.config_class(vocab_size=vocab_size, n_layers=n_layers)
         mlm_model = transformer(config)
-        self.encoder = mlm_model.layers[0]
-        self.hier_attentions = [HierarchicalContextAttention(self.n_contexts, 
-                                                             self.n_tokens, 
-                                                             config)
-                                for _ in range(n_layers-1)]
+        self.embedder = mlm_model.layers[0]._layers[0]
+        tlayers = mlm_model.layers[0]._layers[1].layer
+        self.hier_layers = [HierarchicalTransformerBlock(tl,
+                                                         self.n_contexts, 
+                                                         self.n_tokens, 
+                                                         config)
+                            for tl in tlayers[:-1]]
+        self.hier_last = HierarchicalTransformerBlock(tlayers[-1], 
+                                                      self.n_contexts, 
+                                                      self.n_tokens, 
+                                                      config)
         self.mlm_head = MLMHead(mlm_model, reset=True)
         
         
     def _encode_batch(self, example):
-        hidden_state = self.encoder._layers[0](example['input_ids'])
-        for i, layer_module in enumerate(self.encoder._layers[1].layer):
-            layer_outputs = layer_module(hidden_state, 
-                                         example['attention_mask'],
-                                         None,
-                                         False,
-                                         training=True)
-            hidden_state = layer_outputs[-1]
-            if (i+1)!=len(self.encoder._layers[1].layer):
-                hidden_state = self.hier_attentions[i](hidden_state)
-            return hidden_state
+        hidden_state = self.embedder(example['input_ids'])
+        mask = example['attention_mask']
+        for l in self.hier_layers:
+            hidden_state = l(hidden_state, mask)
+        hidden_state = self.hier_last(hidden_state, mask, True)
+        return hidden_state
     
     
     def call(self, input):
         outs = tf.vectorized_map(self._encode_batch, 
                                  elems=input)
-        logits = self.mlm_model(outs[:,0,:,:])
+        logits = self.mlm_head(outs[:,0,:,:])
         return logits
     
 
@@ -419,22 +421,24 @@ class BiencoderForContextMLM(keras.Model):
         transformer: MLM model class from transformers library
         pretrained_token_encoder_weights (str): path to model initialization 
             weights or pretrained huggingface for token encoder
-        trained_token_encoder_weights (str): path to token encoder weights to load
+        trained_token_encoder_weights (str): path to token encoder weights
         trained_token_encoder_class (str): model class for token encoder
         name (str): identification string
-        n_layers_token_encoder (int): number of transformer layers for token encoder
-        n_layers_context_encoder (int): number of transformer layers for context encoder
+        n_layers_token_encoder (int): number of transformer layers for 
+            token encoder
+        n_layers_context_encoder (int): number of transformer layers for 
+            context encoder
         freeze_token_encoder (list, False, or None): which layers of the token 
             encoder to freeze
         add_dense (int): number of additional dense layers to add 
-            between the encoder and the MLM head, after aggregating context and target
+            between the encoder and the MLM head, after aggregating
         dims (int): dimensionality of dense layers
         n_tokens (int): number of tokens in sequence
         aggregate (str): if aggregate is 'dense', if no additional dense layers 
             are specified after concatenation it adds a converter layer.
             If 'add', multiplies each dimension of the context by each
-                dimension of the token representation. If 'attention', applies
-                attention between context and target
+            dimension of the token representation. If 'attention', applies
+            attention between context and target
         n_contexts (int): number of contexts passed
         vocab_size (int): vocabulary size for the model
     '''
@@ -449,6 +453,7 @@ class BiencoderForContextMLM(keras.Model):
                  freeze_token_encoder=False,
                  add_dense=None,
                  dims=None,
+                 activations=None,
                  n_tokens=512,
                  aggregate='concat',
                  n_contexts=10,
@@ -465,9 +470,9 @@ class BiencoderForContextMLM(keras.Model):
         dims_str = dense_to_str(add_dense, dims)
         if name is None:
             mtype = 'BiencoderForContextMLM'
-            dense_args = f'dense{add_dense}-densedim{dims_str}'
-            ctx_args = f'agg{aggregate}'
-            name = f'{mtype}-{freeze_str}-{n_layers_str}layers-{dense_args}' \
+            dense_args = f'{add_dense}dense-{dims_str}'
+            ctx_args = f'{aggregate}'
+            name = f'{mtype}-{freeze_str}-{n_layers_str}_layers-{dense_args}' \
                    f'-{weights_str}-{ctx_args}'
         super(BiencoderForContextMLM, self).__init__(name=name)
         
@@ -493,10 +498,11 @@ class BiencoderForContextMLM(keras.Model):
         
         # Define aggregation module
         if self.aggregate != 'attention':
-            self.context_pooler = BiencoderContextPooler() # 
+            self.context_pooler = BiencoderContextPooler()
             self.aggregator = BiencoderSimpleAggregator(agg_fn=self.aggregate, 
                                                         add_dense=add_dense,
-                                                        dims=dims)
+                                                        dims=dims,
+                                                        activations=activations)
         else:
             self.aggregator = BiencoderAttentionAggregator(include_head=True)
 

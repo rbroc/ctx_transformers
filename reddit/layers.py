@@ -106,7 +106,7 @@ class BatchTransformerContextAggregator(layers.Layer):
     '''
     def __init__(self, agg_fn='add', 
                  add_dense=0, dims=None, 
-                 dense_act='linear', 
+                 activations=None, 
                  relu_dims=768):
         super(BatchTransformerContextAggregator, self).__init__()
         assert agg_fn in ['add', 'concat']
@@ -114,7 +114,7 @@ class BatchTransformerContextAggregator(layers.Layer):
         if add_dense is None:
             add_dense = 0
         self.post_agg_dense = tf.keras.models.Sequential([Dense(units=dims[i], 
-                                                                activation=dense_act)
+                                                                activation=activations[i])
                                                           for i in range(add_dense)] + 
                                                          [Dense(units=relu_dims, activation='relu')])
         self.post_agg_normalizer = LayerNormalization(epsilon=1e-12)
@@ -139,14 +139,14 @@ class BiencoderAttentionAggregator(layers.Layer):
     ''' Attention aggregator for biencoder
     Args:
         num_heads (int): number of attention heads
-        model_dim (int): model_dimensionality
+        model_dim (int): model dimensionality
         include_head (int): whether to include a layernorm + dense + layernorm
             head (not included in 10/19 training)
     '''
     def __init__(self, num_heads=6, model_dim=768, include_head=True):
         super(BiencoderAttentionAggregator, self).__init__()
         self.agg_layer = MultiHeadAttention(num_heads=num_heads, 
-                                            key_dim=key_dim)
+                                            key_dim=model_dim)
         self.include_head = include_head
         if self.include_head:
             self.att_norm = LayerNormalization(epsilon=1e-12)
@@ -157,12 +157,46 @@ class BiencoderAttentionAggregator(layers.Layer):
         att_tgt = self.agg_layer(target, contexts)
         if self.include_head:
             att_tgt = self.att_norm(att_tgt + target)
-            att_ffn = self.post_attention_ffn(att_tgt)
-            out = self.pre_head_normalizer(att_ffn + att_tgt)
+            att_ffn = self.post_att_ffn(att_tgt)
+            out = self.pre_head_norm(att_ffn + att_tgt)
             return out
         else:
             return att_tgt
+
+
+class HierarchicalTransformerBlock(layers.Layer):
+    ''' Hierarchical transformer block 
+    Args:
+        trlayer: transformer layer
+        n_contexts (int): number of contexts
+        n_tokens (int): number of tokens
+        relu_dims (int): how many units for the relu layer (dimensionality 
+            of the model)
+    '''
+    def __init__(self, 
+                 trlayer, 
+                 n_contexts, 
+                 n_tokens, 
+                 config, 
+                 relu_dims=768):
+        super(HierarchicalTransformerBlock, self).__init__()
+        self.trlayer = trlayer
+        self.attention = HierarchicalAttentionAggregator(n_contexts, 
+                                                         n_tokens, 
+                                                         config, 
+                                                         relu_dims=768)
     
+    def call(self, hidden_state, mask, last=False):
+        layer_out = self.trlayer(hidden_state, 
+                                 mask,
+                                 None,
+                                 False,
+                                 training=True)
+        layer_out = layer_out[-1]
+        if last:
+            layer_out = self.attention(layer_out)
+        return layer_out
+
     
 class HierarchicalAttentionAggregator(layers.Layer):
     ''' Hierarchical attention layer
@@ -174,7 +208,6 @@ class HierarchicalAttentionAggregator(layers.Layer):
     '''
     def __init__(self, n_contexts, n_tokens, config, relu_dims=768):
         super(HierarchicalAttentionAggregator, self).__init__()
-        
         self.ctx_transf = TFMultiHeadSelfAttention(config, name="attention")
         self.post_transf_dense = Dense(units=relu_dims, activation='relu')
         self.post_transf_normalizer = LayerNormalization(epsilon=1e-12)

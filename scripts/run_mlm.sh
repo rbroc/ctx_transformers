@@ -1,26 +1,20 @@
 #!/bin/sh
 
-for grouping in subreddit
-do
-python3 train_mlm.py --log-path 10context_biencoder_3_1_attention --dataset-name 10context_large --context-type $grouping --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 10 --context-pooling cls --add-dense 0 --dims 768 --update-every 8 --freeze-encoder-false
-done
+python3 train_mlm.py --log-path test --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 10 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --pretrained-weights distilbert-base-uncased --n-layers-context-encoder 1 --aggregate add --add-dense 2 --dims 768 768 --activations relu relu --freeze-encoder 0 1 2 3 4 5 --reset-head
 
-# NEXT (Weds-Fri)
-# Make classification model for triplet loss
-# Make triplet loss script
-# Make datasets for triplet loss
-# Support params for triplet loss
-
-# ENH
-# Test a bunch
-# Make sure add_dense supports list always
-# Add dropout
-# Add model loading (later)
-# Send to Tal
-
-# COMMENTS
-# How to compare to no-context MLM?
-# Could consider running pretrained
-# Consider re-running hierarchical
-# Which combos to run?
-# Make sure to make notes of latest versions run
+# Relevant params
+# - Architectures
+    # standard:
+        # pretrained vs no pretrained - tested 
+            # if pretrained, freeze?
+        # aggregation via add or concat - tested
+        # add dense and dims for after aggregation, before layernorm - tested
+    # hier: 
+        # n_layers
+    # biencoder
+        # pretrained vs. no-pretrained
+            # if pretrained, freeze
+        # n_layers and n_layers context encoder
+        # aggregate (concat, add, attention)
+        # add dense and dims after aggregation
+        # context pooler pools and normalizes
