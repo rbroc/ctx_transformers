@@ -1,7 +1,19 @@
 import tensorflow as tf
 
 
-def pad_and_stack_triplet(dataset, pad_to=[20,1,1]):
+def filter_triplet_by_n_anchors(x, n_anchor):
+    ''' Remove stuff that has too few anchors '''
+    if n_anchor:
+        n_anch = tf.math.count_nonzero(tf.reduce_sum(x['iids'], 
+                                                     axis=1))
+        return tf.math.greater(n_anch, n_anchor-1)
+    else:
+        return True
+
+
+def pad_and_stack_triplet(dataset, 
+                          pad_to=[20,1,1], 
+                          n_anchor=None):
     ''' Pads the dataset according to specified number of posts 
         passed via pad_to (anchor, positive, negative) and stacks
         negative, positive and anchor posts vertically.
@@ -11,7 +23,9 @@ def pad_and_stack_triplet(dataset, pad_to=[20,1,1]):
         pad_to (list or tuple): list containing number of posts
             to pad to, i.e., [n_anchor_posts, n_positive_posts,
             n_negative_posts]
+        n_anchor (int): minimum number of anchors
     '''
+    # Slice
     dataset = dataset.map(lambda x: {'iids': x['iids'][:pad_to[0],:], 
                                      'amask': x['amask'][:pad_to[0],:],
                                      'pos_iids': x['pos_iids'][:pad_to[1],:],
@@ -19,6 +33,7 @@ def pad_and_stack_triplet(dataset, pad_to=[20,1,1]):
                                      'neg_iids': x['neg_iids'][:pad_to[2],:],
                                      'neg_amask': x['neg_amask'][:pad_to[2],:],
                                      'author_id': x['author_id']})
+    # Pad
     dataset = dataset.map(lambda x: {'iids': tf.pad(x['iids'], 
                                                     [[0,pad_to[0]-tf.shape(x['iids'])[0]],
                                                      [0,0]]),
@@ -38,12 +53,38 @@ def pad_and_stack_triplet(dataset, pad_to=[20,1,1]):
                                                          [[0,pad_to[2]-tf.shape(x['neg_amask'])[0]],
                                                           [0,0]]),
                                      'author_id': x['author_id']})
+    if n_anchor:
+        dataset = dataset.filter(lambda x: filter_triplet_by_n_anchors(x, 
+                                                                       n_anchor))
+        dataset = dataset.map(lambda x: {'iids': x['iids'][:n_anchor,:], 
+                                         'amask': x['amask'][:n_anchor,:],
+                                         'pos_iids': x['pos_iids'],
+                                         'pos_amask': x['pos_amask'],
+                                         'neg_iids': x['neg_iids'],
+                                         'neg_amask': x['neg_amask'],
+                                         'author_id': x['author_id']})
+    
+    # Stack
     dataset = dataset.map(lambda x: {'input_ids': tf.concat([x['neg_iids'],
                                                              x['pos_iids'],
                                                              x['iids']], axis=0),
                                      'attention_mask': tf.concat([x['neg_amask'],
                                                                   x['pos_amask'],
                                                                   x['amask']], axis=0),
+                                     'id': x['author_id']})
+    return dataset
+
+
+def stack_classification(dataset):
+    ''' Stacks examples for classification layer
+    Args:
+        dataset (TFDataset): dataset to pad and stack 
+    '''
+    dataset = dataset.map(lambda x: {'input_ids': tf.concat([x['iids'],
+                                                             x['iids2']], axis=0),
+                                     'attention_mask': tf.concat([x['amask'],
+                                                                  x['amask2']], axis=0),
+                                     'labels': x['labels'],
                                      'id': x['author_id']})
     return dataset
 
@@ -116,13 +157,24 @@ def mask_and_stack_mlm(dataset, is_context=True, mask_proportion=.15):
     return dataset
     
 
-def prepare_agg(dataset):  
+def prepare_agg(dataset, targets):  
     dataset = dataset.map(lambda x: {'input_ids': x['iids'],
                                      'attention_mask': x['amask'],    
                                      'id': x['author_id'],
                                      'avg_score': x['avg_score'],
                                      'avg_comm': x['avg_comm'], 
-                                     'avg_posts': x['avg_posts']})
+                                     'avg_posts': x['avg_posts'],
+                                     'labels': [x[i] for i in targets]})
+    return dataset
+
+def prepare_posts(dataset, targets):  
+    dataset = dataset.map(lambda x: {'id': x['id'],
+                                     'input_ids': x['iids'],
+                                     'attention_mask': x['amask'],
+                                     'score': x['score'],
+                                     'comments': x['comments'],  
+                                     'labels': [x[i] for i in targets]})
+    
     return dataset
     
     

@@ -43,7 +43,7 @@ parser.add_argument('--update-every', type=int, default=16,
 parser.add_argument('--mlm-type', type=str,
                     help='Type of mlm model (standard, hier, biencoder)')
 parser.add_argument('--pretrained-weights', type=str, 
-                    default='distilbert-base-uncased',
+                    default=None,
                     help='Pretrained huggingface model')
 parser.add_argument('--trained-encoder-weights', type=str, default=None,
                     help='Path to trained encoder weights to load (hf format)')
@@ -58,6 +58,8 @@ parser.add_argument('--add-dense', type=int, default=None,
                     help='''Number of dense layers to add to MLM with context
                             after concatenation (see model specs)''')
 parser.add_argument('--dims', nargs='+', help='Number of nodes in layers', 
+                    default=None)
+parser.add_argument('--activations', nargs='+', help='Number of activations', 
                     default=None)
 parser.add_argument('--n-tokens', type=int, default=512,
                     help='Number of tokens in encoding')
@@ -75,7 +77,6 @@ parser.add_argument('--n-layers-context-encoder', type=int, default=None,
                     help='''Number of transformer layers for 
                             additional context encoder architecture 
                             in biencoder ''')
-
 
 # Define boolean args
 parser.add_argument('--reset-head', dest='reset_head', action='store_true',
@@ -99,6 +100,7 @@ def _run_training(mlm_type,
                   reset_head,
                   add_dense,
                   dims,
+                  activations,
                   n_contexts,
                   n_tokens,
                   vocab_size,
@@ -107,11 +109,6 @@ def _run_training(mlm_type,
                   n_layers_context_encoder, 
                   update_every,
                   test_only):
-    
-    # Fix dims argument
-    if dims:
-        if not isinstance(dims, list):
-            dims = [dims]
 
     # Define type of training
     if context_type == 'single':
@@ -169,7 +166,7 @@ def _run_training(mlm_type,
     with strategy.scope():
         optimizer = create_optimizer(2e-5, # allow edit
                                      num_train_steps=n_train_steps * n_epochs, # allow edit
-                                     num_warmup_steps=n_train_steps / 10) # allow edit
+                                     num_warmup_steps=10000) # could change
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,
@@ -191,6 +188,7 @@ def _run_training(mlm_type,
                                     reset_head=reset_head,
                                     add_dense=add_dense,
                                     dims=dims,
+                                    activations=activations,
                                     n_tokens=n_tokens,
                                     aggregate=aggregate,
                                     n_contexts=n_contexts,
@@ -211,6 +209,7 @@ def _run_training(mlm_type,
                                     freeze_token_encoder=freeze_encoder,
                                     add_dense=add_dense,
                                     dims=dims,
+                                    activations=activations,
                                     n_tokens=n_tokens,
                                     aggregate=aggregate,
                                     n_contexts=n_contexts,
@@ -228,11 +227,10 @@ def _run_training(mlm_type,
                       steps_per_epoch=n_train_steps, 
                       log_every=1000,
                       ds_type=ds_type,
-                      mlm_type=context_type,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False,
+                      eval_before_training=True,
                       test_steps=n_test_steps,
                       update_every=update_every)
 
@@ -241,13 +239,14 @@ def _run_training(mlm_type,
                 dataset_test=ds_val,
                 shuffle=False, # saving time
                 transform=mlm_transform,
-                transform_dynamic=True,
                 transform_test=True,
                 test_only=test_only,
                 labels=True, 
                 is_context=is_context,
                 mask_proportion=.15,
                 batch_size=global_batch_size)
+    
+    print(model.summary())
     
 
 if __name__=='__main__':
@@ -266,6 +265,7 @@ if __name__=='__main__':
                   reset_head=args.reset_head,
                   add_dense=args.add_dense,
                   dims=args.dims,
+                  activations=args.activations,
                   n_contexts=args.n_contexts,
                   n_tokens=args.n_tokens,
                   vocab_size=args.vocab_size,

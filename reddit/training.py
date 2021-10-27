@@ -1,8 +1,5 @@
 import tensorflow as tf
 from tensorflow.keras.utils import Progbar
-import json
-from pathlib import Path
-import numpy as np
 from reddit import (Logger, ModelCheckpoint,
                     OptimizerCheckpoint)
 from reddit.utils import LOG_DICT, META_DICT, PBAR_DICT
@@ -35,6 +32,8 @@ class Trainer:
         eval_before_training (bool): whether to run a test epoch 
             before the first training epoch (useful to gather 
             baseline performance)
+        update_every (int): parameter for frequency of gradient 
+            accumulation
     '''
     def __init__(self, model, 
                  loss_object, strategy, 
@@ -47,7 +46,6 @@ class Trainer:
                  log_every=100,
                  start_epoch=0,
                  ds_type='triplet',
-                 mlm_type=None,
                  checkpoint_device=None,
                  log_path='..',
                  eval_before_training=True,
@@ -111,7 +109,7 @@ class Trainer:
                                                        labels))
         gradsum = [self.strategy.reduce(tf.distribute.ReduceOp.MEAN, 
                                         g,
-                                        axis=None) for g in gradients] # could sum?
+                                        axis=None) for g in gradients] # averaging within batch
         return [getattr(o,'values') for o in step_outs], gradsum
 
     
@@ -124,8 +122,8 @@ class Trainer:
 
     def _gradient_update(self, accumulated_grads):
         ''' Define gradient update '''
-        avg_grads = [a/(self.update_every) for a in accumulated_grads] # maybe remove?
-        self.optimizer.apply_gradients(zip(accumulated_grads, 
+        avg_grads = [a/(self.update_every) for a in accumulated_grads]
+        self.optimizer.apply_gradients(zip(avg_grads, 
                                            self.model.trainable_variables))
         
     @tf.function
@@ -159,15 +157,19 @@ class Trainer:
                 outs, grads = self._run_distributed_train_step(example, labels)
                 if n == 0:
                     accumulated_grads = grads # initialize gradients
-                accumulated_grads = self._accumulate_gradients(grads, 
-                                                               accumulated_grads)
+                else:
+                    accumulated_grads = self._accumulate_gradients(grads, 
+                                                                   accumulated_grads)
                 ids = list(tf.concat(example['id'].values, axis=0))
                 meta = [list(tf.concat(example[mvar].values, axis=0)) 
                         for mvar in self.meta_vars]
             else:
                 outs, grads = [[o] for o in self._train_step(example, labels)]
-                accumulated_grads = self._accumulate_gradients(grads, 
-                                                               accumulated_grads)
+                if n == 0:
+                    accumulated_grads = grads
+                else:
+                    accumulated_grads = self._accumulate_gradients(grads, 
+                                                                   accumulated_grads)
                 ids = list(example['id'])
                 meta = [list(example[mvar]) for mvar in self.meta_vars]
             
@@ -221,7 +223,6 @@ class Trainer:
             dataset_test=None, 
             shuffle=True,
             transform=None,
-            transform_dynamic=False,
             transform_test=False,
             test_only=False, 
             test_epoch_name='test_only',
@@ -234,9 +235,6 @@ class Trainer:
             shuffle (bool): whether to shuffle the dataset at each epoch
             transform (function): if defined, the function passed
                 here is applied to the training dataset.
-            transform_dynamic (bool): whether the transformation is to be 
-                applied at every epoch, or only once (before the first 
-                training epoch)
             transform_test (bool): apply transformation to test too?
             test_only (bool): whether to only run test epoch
             test_epoch_name (str): identifier for test epoch
@@ -259,19 +257,12 @@ class Trainer:
             
             for epoch in range(self.start_epoch, self.n_epochs):
                 dataset = dataset_train
-                
-                if transform: 
-                    if transform_dynamic:
-                        dataset = transform(dataset,
-                                            **transform_kwargs)
-                    else:
-                        if epoch == self.start_epoch:
-                            dataset = transform(dataset,
-                                                *transform_kwargs)
-                    
+                if transform:
+                    dataset = transform(dataset,
+                                        **transform_kwargs)
                 if shuffle:
                     print('Shuffling training data...')
-                    dataset = dataset.shuffle(self.steps_per_epoch/3) # edited
+                    dataset = dataset.shuffle(int(self.steps_per_epoch/3)) # int(1)
                     
                 if self.distributed:
                     dataset = self.strategy.experimental_distribute_dataset(dataset)

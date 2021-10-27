@@ -1,3 +1,4 @@
+from re import L
 import tensorflow as tf
 from tensorflow import keras
 from reddit.utils import (average_encodings, 
@@ -39,32 +40,42 @@ class TripletLossBase(TripletLoss):
         margin (float): margin to be induced between distances of
             positive and negative encoding from avg of anchor encodings
     '''
-    def __init__(self, margin, n_neg=1, n_pos=1, 
+    def __init__(self, margin, n_neg=1, n_pos=1, n_anc=None,
                  custom_loss_fn=None, name=None):
         super().__init__(margin, custom_loss_fn, name)
         self.n_neg = n_neg
         self.n_pos = n_pos
+        self.n_anc = n_anc
     
     def __call__(self, encodings):
         ''' Computes loss. Returns loss, metric and encodings distances 
         Args:
             encodings (tf.Tensor): posts encodings
         '''       
-        n_enc = encodings[:, :self.n_neg, :]
-        p_enc = encodings[:, self.n_neg:self.n_neg+self.n_pos, :]
-        a_enc = encodings[:, self.n_neg+self.n_pos:, :]
-        dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, elems=a_enc)
+        neg_idx = self.n_neg
+        pos_idx = neg_idx + self.n_pos
+        n_enc = encodings[:, :neg_idx, :]
+        p_enc = encodings[:, neg_idx:pos_idx, :]
+        if self.n_anc:
+            a_enc = encodings[:, pos_idx:pos_idx+self.n_anc, :]
+        else:
+            a_enc = encodings[:, pos_idx:, :]
         avg_a_enc = tf.squeeze(average_encodings(a_enc), axis=1)
         avg_n_enc = tf.squeeze(average_encodings(n_enc), axis=1)
         avg_p_enc = tf.squeeze(average_encodings(p_enc), axis=1)
         dist_pos = tf.reduce_sum(tf.square(avg_a_enc - avg_p_enc), axis=1)
         dist_neg = tf.reduce_sum(tf.square(avg_a_enc - avg_n_enc), axis=1)
+        if (self.n_anc is None) or (self.n_anc > 1):
+            dist_anch = tf.vectorized_map(compute_mean_pairwise_distance, 
+                                          elems=a_enc)
+        else:
+            dist_anch = tf.zeros(shape=dist_pos.shape)
         metric = tf.cast(tf.greater(dist_neg, dist_pos), tf.float32)
         loss = self._loss_function(dist_pos, dist_neg, dist_anch)
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg, dist_anch]]
         return outs
-
+    
 
 class TripletLossFFN(TripletLoss):
     ''' Triplet loss for batch transformer with FFN head
@@ -87,6 +98,24 @@ class TripletLossFFN(TripletLoss):
         loss = self._loss_function(dist_pos, dist_neg)
         outs = [tf.reduce_mean(o, axis=0) 
                 for o in [loss, metric, dist_pos, dist_neg]]
+        return outs
+
+    
+class ClassificationLoss:
+    ''' Classification loss for siamese network '''
+    def __init__(self, name=None):
+        super().__init__()
+        self.name = name or 'classification-loss'
+        self.loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=False,
+                                                          reduction=tf.keras.losses.Reduction.NONE)
+    
+    def __call__(self, probs, labels):
+        loss = self.loss_fn(labels, probs)
+        is_same = tf.cast(tf.greater(probs, .5), tf.float32)
+        metric = is_same == tf.cast(labels, tf.float32)
+        metric = tf.cast(metric, tf.float32)
+        outs = [tf.reduce_mean(o, axis=0) 
+                for o in [loss, metric, probs]]
         return outs
 
     
@@ -136,7 +165,7 @@ class MLMLoss:
         return outs
     
 
-class AggregateLoss:
+class MetricsLoss:
     ''' Loss function for aggregates prediction 
     Args:
         name (str): loss name
@@ -147,7 +176,7 @@ class AggregateLoss:
                  name=None,
                  loss_type='mse',
                  huber_delta=None):
-        self.name = name or f'aggregate-{loss_type}'
+        self.name = name or f'{loss_type}'
         if loss_type == 'mse':
             self.loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
         elif loss_type == 'mae':
@@ -157,7 +186,7 @@ class AggregateLoss:
                                                  reduction=tf.keras.losses.Reduction.NONE)
         else:
             raise ValueError('loss_type must be one of \'mae\', \'mse\', \'huber\'')
-        super.__init__()
+        super().__init__()
 
         
     def __call__(self, model_outs, labels):
@@ -167,6 +196,6 @@ class AggregateLoss:
             labels: true score for each label
         '''
         losses = self.loss_fn(model_outs, labels)
-        outs = [tf.reduce_mean(losses, axis=0)]
+        outs = [tf.reduce_mean(losses, axis=0), model_outs] # across batch?
         return outs
     

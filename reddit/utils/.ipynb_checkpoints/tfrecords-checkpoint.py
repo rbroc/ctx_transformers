@@ -9,6 +9,10 @@ FEATURE_NAMES = {'triplet': ['iids', 'amask',
                              'pos_iids', 'pos_amask',
                              'neg_iids', 'neg_amask', 
                              'author_id'],
+                 'classification': ['iids', 'amask', 
+                                    'iids2', 'amask2', 
+                                    'labels', 
+                                    'author_id'],
                 'mlm': ['target_iids', 'target_amask', 
                         'context_iids', 'context_amask',
                         'example_id', 
@@ -18,14 +22,19 @@ FEATURE_NAMES = {'triplet': ['iids', 'amask',
                                'mask_token_id'],
                 'agg': ['iids', 'amask', 
                         'avg_score', 'avg_comm', 'avg_posts', 
-                        'author_id']}
+                        'author_id'],
+                'posts': ['iids', 'amask', 'comments', 'score', 'id']}
 
 FEATURE_OUT_TYPES = {'triplet': tuple([tf.int32]*7),
+                     'classification': tuple([tf.int32]*6),
                      'mlm': tuple([tf.int32]*6),
                      'mlm_simple': tuple([tf.int32]*4),
                      'agg': (tf.int32, tf.int32, 
                              tf.float32, tf.float32, tf.float32,
-                             tf.int32)}
+                             tf.int32),
+                     'posts':(tf.int32, tf.int32, 
+                              tf.float32, tf.float32, 
+                              tf.int32)}
 
 
 
