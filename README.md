@@ -4,7 +4,6 @@ Includes code for two projects:
 - Training MLM with structured context
 
 
-## Status
 ## Triplet loss
 Using triplet loss with 10 anchor posts, 1 negative and 1 positive example, the model learns to perform at .90
 It would be useful to test a few manipulations:
@@ -25,7 +24,7 @@ Resulting models should then be evaluates on:
 - Predicting single-post metrics
 - Predicting user aggregate metrics
 
-#### Next step:
+#### Next steps:
 1. Train one epoch of the 1/1/1 model
     - [ ] CLS standard, dense 100, vae 100
     - [ ] random standard
@@ -51,7 +50,7 @@ There are three main architectures:
 - A **biencoder**, where context and targets are encoded separately.
 Each of these models can be tuned over different parameters.
 
-#### Next steps
+#### Next steps:
 Testing architectures:
 1. Standard transformer
     - Aggregation strategy
