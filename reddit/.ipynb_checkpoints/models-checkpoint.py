@@ -2,7 +2,8 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import (Dense,
                                      Concatenate, 
-                                     Lambda)
+                                     Lambda,
+                                     LayerNormalization)
 from reddit.utils import (average_encodings,
                           dense_to_str, 
                           freeze_encoder_weights,
@@ -84,6 +85,10 @@ class BatchTransformer(keras.Model):
                                                 batch_size=batch_size)
         else:
             self.compressor = None
+        if pooling == 'mean':
+            self.layernorm = LayerNormalization(epsilon=1e-12)
+        else:
+            self.layernorm = None
         self.pooling = pooling
 
     def _encode_batch(self, example):
@@ -97,7 +102,7 @@ class BatchTransformer(keras.Model):
             # cls token
             encoding = output.last_hidden_state[:,0,:]
         elif self.pooling == 'mean':
-            # Mean of defined tokens
+            # Mean of defined tokens - roughly equivalent to cls
             encoding = tf.reduce_sum(output.last_hidden_state[:,1:,:], axis=1)
             n_tokens = tf.reduce_sum(example['attention_mask'], axis=-1, keepdims=True)
             encoding = encoding / tf.cast(n_tokens, tf.float32)
@@ -124,6 +129,8 @@ class BatchTransformer(keras.Model):
     def call(self, input):
         encodings, attentions = tf.vectorized_map(self._encode_batch, 
                                                   elems=input)
+        if self.layernorm:
+            encodings = self.layernorm(encodings)
         if self.compressor:
             encodings = self.compressor(encodings)
         if self.output_attentions:
@@ -147,25 +154,30 @@ class BatchTransformerClassifier(BatchTransformer):
                  pooling='cls',
                  vocab_size=30522,
                  n_layers=None, 
-                 batch_size=1):
+                 batch_size=1,
+                 use_embeddings='all'):
         super().__init__(transformer, pretrained_weights,
                          trained_encoder_weights,
                          trained_encoder_class,
                          name, trainable, False,
                          compress_to, compress_mode, intermediate_size,
                          pooling, vocab_size, n_layers, batch_size)
+        self.concat = Concatenate(axis=-1)
         self.dense = Dense(units=1, activation='sigmoid')
+        self.use_embeddings = use_embeddings
         self.nposts = nposts
 
     def call(self, input):
         encodings = super().call(input)
-        enc_1 = encodings[:, :self.nposts, :] # bs x n posts x 768
+        enc_1 = encodings[:, :self.nposts, :]
         enc_2 = encodings[:, self.nposts:, :]
-        avg_enc_1 = tf.reduce_mean(enc_1, axis=1) # bs x 768
-        avg_enc_2 = tf.reduce_mean(enc_2, axis=1) # bs x 768
-        sqdiff = (avg_enc_1 - avg_enc_2)**2 # bs x 768
-        dist = tf.sqrt(tf.reduce_sum(sqdiff, axis=-1, keepdims=True))
-        logits = self.dense(dist)
+        avg_enc_1 = tf.reduce_mean(enc_1, axis=1)
+        avg_enc_2 = tf.reduce_mean(enc_2, axis=1)
+        if self.use_embeddings == 'all':
+            pre_logits = self.concat([avg_enc_1, avg_enc_2, tf.abs(avg_enc_1 - avg_enc_2)])
+        elif self.use_embeddings == 'distance':
+            pre_logits = self.concat([tf.abs(avg_enc_1 - avg_enc_2)])
+        logits = self.dense(pre_logits)
         return logits
         
 
@@ -316,7 +328,7 @@ class BatchTransformerForContextMLM(keras.Model):
         n_tokens (int): number of tokens in sequence
         aggregate (str): if aggregate is 'dense', if no additional dense layers 
             are specified after concatenation it adds a converter layer.
-            If 'add', multiplies each dimension of the context by each
+            If 'add', adds each dimension of the context to each
                 dimension of the token representation. 
         n_contexts (int): number of contexts passed
         vocab_size (int): vocabulary size for the model
@@ -401,9 +413,6 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         name (str): identification string
         n_layers (int): number of transformer layers for encoder (relevant 
             if not loading a pretrained configurations)
-        add_dense (int): number of additional dense layers to add 
-            between the encoder and the MLM head
-        dims (int): dimensionality of dense layers
         n_tokens (int): number of tokens in sequence
         n_contexts (int): number of contexts passed
         vocab_size (int): vocabulary size for the model

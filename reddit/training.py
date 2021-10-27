@@ -109,7 +109,7 @@ class Trainer:
                                                        labels))
         gradsum = [self.strategy.reduce(tf.distribute.ReduceOp.MEAN, 
                                         g,
-                                        axis=None) for g in gradients] # could sum?
+                                        axis=None) for g in gradients] # averaging within batch
         return [getattr(o,'values') for o in step_outs], gradsum
 
     
@@ -157,15 +157,19 @@ class Trainer:
                 outs, grads = self._run_distributed_train_step(example, labels)
                 if n == 0:
                     accumulated_grads = grads # initialize gradients
-                accumulated_grads = self._accumulate_gradients(grads, 
-                                                               accumulated_grads)
+                else:
+                    accumulated_grads = self._accumulate_gradients(grads, 
+                                                                   accumulated_grads)
                 ids = list(tf.concat(example['id'].values, axis=0))
                 meta = [list(tf.concat(example[mvar].values, axis=0)) 
                         for mvar in self.meta_vars]
             else:
                 outs, grads = [[o] for o in self._train_step(example, labels)]
-                accumulated_grads = self._accumulate_gradients(grads, 
-                                                               accumulated_grads)
+                if n == 0:
+                    accumulated_grads = grads
+                else:
+                    accumulated_grads = self._accumulate_gradients(grads, 
+                                                                   accumulated_grads)
                 ids = list(example['id'])
                 meta = [list(example[mvar]) for mvar in self.meta_vars]
             
@@ -258,7 +262,7 @@ class Trainer:
                                         **transform_kwargs)
                 if shuffle:
                     print('Shuffling training data...')
-                    dataset = dataset.shuffle(int(1)) # self.steps_per_epoch/3
+                    dataset = dataset.shuffle(int(self.steps_per_epoch/3)) # int(1)
                     
                 if self.distributed:
                     dataset = self.strategy.experimental_distribute_dataset(dataset)

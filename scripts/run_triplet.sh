@@ -10,22 +10,30 @@
 #    done
 
 
+# CURRENT
+# Try mean with norm - remove if not more effective...
+# Make random more efficient - batch?
+# Try compression head - batch?
+# More anchors - no batch?
+# Biencoder loading
+
+
 # NEXT
-# Next train with more posts
-# Next add compressions
-# Only the end, play with margins (and maybe reset architecture)
-# Finally, try biencoder loading
+# Run classification as is [ON HOLD]
 
 
 #python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin 1 --pad-anchor 10 --n-anchor 1 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling cls
 
 # Other margin
-#python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin #1 --pad-anchor 10 --n-anchor 1 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling cls --loss-margin 0.01
+#python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin #1 --pad-anchor 10 --n-anchor 1 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling cls --loss-margin 0.01 - To rerun?
+
+# Classifier
+#python3 train_classifier.py --dataset-name 1post --log-path 1post --per-replica-batch-size 1 --dataset-size 100000 --n-epochs 1 --update-every 8 --nposts 1 --pretrained-weights distilbert-base-uncased --pooling cls - To rerun?
 
 # Other aggregations
-#python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin #1 --pad-anchor 10 --n-anchor 1 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling mean
+python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin 1 --pad-anchor 10 --n-anchor 1 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling mean
 
-python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 10 --n-epochs 1 --update-every 8 --loss-margin 1 --pad-anchor 10 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling random
+#python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin 1 --pad-anchor 10 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling random
 
 # With compression head
 #python3 train_triplet.py --dataset-name 1pos_1neg_random --log-path 1anchor --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --update-every 8 --loss-margin 1 --pad-anchor 10 --n-anchor 1 --n-pos 1 --n-neg 1 --pretrained-weights distilbert-base-uncased --pooling cls --compress-to 50 --compress-mode dense

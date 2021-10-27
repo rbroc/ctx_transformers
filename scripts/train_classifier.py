@@ -37,6 +37,8 @@ parser.add_argument('--update-every', type=int, default=16,
 # Loss arguments
 parser.add_argument('--nposts', type=int, default=None,
                     help='Number of posts')
+parser.add_argument('--use-embeddings', type=str, default=None,
+                    help='Which embeddings to use')
 # Model arguments
 parser.add_argument('--pretrained-weights', type=str, 
                     default='distilbert-base-uncased',
@@ -68,6 +70,7 @@ def _run_training(log_path,
                   n_epochs,
                   start_epoch,
                   nposts,
+                  use_embeddings,
                   pretrained_weights,
                   trained_encoder_weights,
                   compress_to,
@@ -134,7 +137,8 @@ def _run_training(log_path,
                             intermediate_size=intermediate_size,
                             pooling=pooling,
                             vocab_size=vocab_size,
-                            n_layers=n_layers)
+                            n_layers=n_layers,
+                            use_embeddings=use_embeddings)
 
     # Initialize trainer
     trainer = Trainer(model=model,
@@ -144,7 +148,7 @@ def _run_training(log_path,
                       n_epochs=n_epochs, 
                       start_epoch=start_epoch,
                       steps_per_epoch=n_train_steps, 
-                      log_every=1000,
+                      log_every=100,
                       ds_type='classification',
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
@@ -173,6 +177,7 @@ if __name__=='__main__':
                   args.n_epochs,
                   args.start_epoch,
                   args.nposts,
+                  args.use_embeddings,
                   args.pretrained_weights,
                   args.trained_encoder_weights,
                   args.compress_to,

@@ -115,7 +115,7 @@ class ClassificationLoss:
         metric = is_same == tf.cast(labels, tf.float32)
         metric = tf.cast(metric, tf.float32)
         outs = [tf.reduce_mean(o, axis=0) 
-                for o in [loss, metric]]
+                for o in [loss, metric, probs]]
         return outs
 
     
