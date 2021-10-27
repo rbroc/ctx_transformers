@@ -1,10 +1,10 @@
-# Training transformers with structured context
+## Training transformers with structured context
 Includes code for two projects:
 - Transformers as person/user encoders;
 - Training MLM with structured context
 
 
-# Status
+## Status
 ## Triplet loss
 Using triplet loss with 10 anchor posts, 1 negative and 1 positive example, the model learns to perform at .90
 It would be useful to test a few manipulations:
@@ -36,7 +36,7 @@ Resulting models should then be evaluates on:
 3. - [ ] Evaluate best models on aggregate user metrics prediction (compared to pretrained)
 4. - [ ] Evaluate best models on single-post metric prediction (compared to pretrained)
 5. - [ ] Evaluate on masked language modeling (standard model)
-6. - [ ] Tidy up baselines set of baselines
+6. - [ ] Tidy up baselines set of baselines <br>
 Optional: 
 - test 1/1/1, standard, on classification task
 - try not pretrained
