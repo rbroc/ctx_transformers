@@ -28,9 +28,9 @@ Resulting models should then be evaluates on:
 1. Train one epoch of the 1/1/1 model
     - [ ] CLS standard, dense 100, vae 100
     - [ ] random standard
-1b. - [ ] Potentially proceed to testing other combinations on random
-1c. - [ ] Potentially proceed to lower dimensionalities (50? 20?)
-1d. - [ ] Potentially try out a different margin on one of the models?
+    1b. - [ ] Potentially proceed to testing other combinations on random
+    1c. - [ ] Potentially proceed to lower dimensionalities (50? 20?)
+    1d. - [ ] Potentially try out a different margin on one of the models?
 2. - [ ] Take the best models, and see if 10/1/1 and 3/3/3 improves things
 3. - [ ] Evaluate best models on aggregate user metrics prediction (compared to pretrained)
 4. - [ ] Evaluate best models on single-post metric prediction (compared to pretrained)
