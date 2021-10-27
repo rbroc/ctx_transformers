@@ -4,19 +4,19 @@ Includes code for two projects:
 - Training MLM with structured context
 
 
-## Status
-### Triplet loss
+# Status
+## Triplet loss
 Using triplet loss with 10 anchor posts, 1 negative and 1 positive example, the model learns to perform at .90
 It would be useful to test a few manipulations:
-- Number of anchor/pos/neg posts:
+- **Number of anchor/pos/neg posts**:
     - 1/1/1
     - 3/3/3
     - 10/1/1
-- Which kind of pooling is uses:
+- Which kind of **pooling**:
     - CLS token
     - Mean of tokens (very unstable if not normalized, same as CLS if normalized)
     - Picking one random token (from a few tests, seems to increase performance significantly)
-- Different dimensionalities of the output, e.g.:
+- Different **dimensionalities** of the output, e.g.:
     - Standard (768)
     - 100 (with a dense layer or a VAE)
     - 20 (with a dense layer or a VAE)
@@ -27,8 +27,8 @@ Resulting models should then be evaluates on:
 
 #### Next step:
 1. Train one epoch of the 1/1/1 model
-- [ ] CLS standard, dense 100, vae 100
-- [ ] random standard
+    - [ ] CLS standard, dense 100, vae 100
+    - [ ] random standard
 1b. - [ ] Potentially proceed to testing other combinations on random
 1c. - [ ] Potentially proceed to lower dimensionalities (50? 20?)
 1d. - [ ] Potentially try out a different margin on one of the models?
@@ -41,7 +41,8 @@ Optional:
 - test 1/1/1, standard, on classification task
 - try not pretrained
 
-### Context-informed masked language modeling
+
+## Context-informed masked language modeling
 The refined architectures seem to produce a difference between context types.
 Next steps is to systematically understand which ones do best.
 There are three main architectures: 
