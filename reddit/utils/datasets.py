@@ -75,11 +75,20 @@ def pad_and_stack_triplet(dataset,
     return dataset
 
 
-def stack_classification(dataset):
+def _filter_classification(x, n_posts):
+    ''' Remove stuff that has too few anchors '''
+    n_p1 = tf.math.count_nonzero(tf.reduce_sum(x['iids'], 
+                                               axis=1))
+    return tf.math.greater(n_p1, n_posts-1)
+    
+
+def stack_classification(dataset, n_posts):
     ''' Stacks examples for classification layer
     Args:
         dataset (TFDataset): dataset to pad and stack 
     '''
+    dataset = dataset.filter(lambda x: _filter_classification(x, n_posts))
+        
     dataset = dataset.map(lambda x: {'input_ids': tf.concat([x['iids'],
                                                              x['iids2']], axis=0),
                                      'attention_mask': tf.concat([x['amask'],

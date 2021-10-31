@@ -107,8 +107,8 @@ def save_encoder_huggingface(ckpt_path,
         outpath = Path(ckpt_path) / '..' / '..'/ '..' / '..' / 'huggingface'
     outpath.mkdir(exist_ok=True, parents=True)
     if model is None:
-        model = reddit_model_class(transformers_model_class,
-                                   transformers_weights)
+        model = reddit_model_class(transformer=transformers_model_class,
+                                   pretrained_weights=transformers_weights)
     ckpt = tf.train.latest_checkpoint(ckpt_path)
     model.load_weights(ckpt)
     model.encoder.save_pretrained(outpath) # only saves encoder weights, could be refined

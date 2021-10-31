@@ -49,8 +49,12 @@ class Trainer:
                  checkpoint_device=None,
                  log_path='..',
                  eval_before_training=True,
-                 update_every=1):
-        self.train_vars = LOG_DICT[ds_type]
+                 update_every=1,
+                 metric_vars=None):
+        if ds_type not in ['agg', 'posts']:
+            self.train_vars = LOG_DICT[ds_type]
+        else:
+            self.train_vars = metric_vars
         self.test_vars = ['test_' + v for v in self.train_vars]
         self.meta_vars = META_DICT[ds_type]
         self.pbar_vars = PBAR_DICT[ds_type]

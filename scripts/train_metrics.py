@@ -87,7 +87,7 @@ def _run_training(log_path,
     model_class = BatchTransformerForMetrics
     loss = MetricsLoss(loss_type=loss_type)
     mtype = 'agg' if metric_type == 'aggregate' else 'posts'
-    transform_fn = add_transform if mtype == 'agg' else posts_transform
+    transform_fn = agg_transform if mtype == 'agg' else posts_transform
     DATA_PATH = Path('..') /'reddit'/ 'data' / 'datasets'/ mtype
    
     # Config
@@ -148,14 +148,15 @@ def _run_training(log_path,
                       n_epochs=n_epochs, 
                       start_epoch=start_epoch,
                       steps_per_epoch=n_train_steps, 
-                      log_every=1,
+                      log_every=1000,
                       ds_type=mtype,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
                       eval_before_training=True,
                       test_steps=n_test_steps,
-                      update_every=update_every)
+                      update_every=update_every,
+                      metric_vars=['losses'] + targets)
     
     # Run training
     trainer.run(dataset_train=ds_train, 

@@ -165,7 +165,8 @@ def _run_training(log_path,
                 transform_test=True,
                 test_only=test_only,
                 labels=True,
-                batch_size=global_batch_size,)
+                n_posts=nposts,
+                batch_size=global_batch_size)
     
 
 if __name__=='__main__':

@@ -141,7 +141,8 @@ class BatchTransformer(keras.Model):
 
 class BatchTransformerClassifier(BatchTransformer):
     ''' Adds classification layer '''
-    def __init__(self, nposts,
+    def __init__(self, 
+                 nposts,
                  transformer, 
                  pretrained_weights,
                  trained_encoder_weights=None,
@@ -156,17 +157,21 @@ class BatchTransformerClassifier(BatchTransformer):
                  n_layers=None, 
                  batch_size=1,
                  use_embeddings='all'):
+        name = name or f'BatchTransformerClassifier-{nposts}posts-{use_embeddings}emb'
         super().__init__(transformer, pretrained_weights,
                          trained_encoder_weights,
                          trained_encoder_class,
                          name, trainable, False,
                          compress_to, compress_mode, intermediate_size,
                          pooling, vocab_size, n_layers, batch_size)
-        self.concat = Concatenate(axis=-1)
+        if use_embeddings == 'all':
+            self.concat = Concatenate(axis=-1)
+        else:
+            self.concat = None
         self.dense = Dense(units=1, activation='sigmoid')
         self.use_embeddings = use_embeddings
         self.nposts = nposts
-
+        
     def call(self, input):
         encodings = super().call(input)
         enc_1 = encodings[:, :self.nposts, :]
@@ -176,7 +181,8 @@ class BatchTransformerClassifier(BatchTransformer):
         if self.use_embeddings == 'all':
             pre_logits = self.concat([avg_enc_1, avg_enc_2, tf.abs(avg_enc_1 - avg_enc_2)])
         elif self.use_embeddings == 'distance':
-            pre_logits = self.concat([tf.abs(avg_enc_1 - avg_enc_2)])
+            pre_logits = tf.abs(avg_enc_1 - avg_enc_2)
+        # Could add a dense layer here
         logits = self.dense(pre_logits)
         return logits
         

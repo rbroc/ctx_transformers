@@ -23,12 +23,13 @@ def triplet_transform(dataset,
 
 
 def classification_transform(dataset,
+                             n_posts,
                              batch_size=4):
     '''Transform pipeline for classification dataset
     Args:
         dataset: dataset to transform
     '''
-    dataset = stack_classification(dataset)
+    dataset = stack_classification(dataset, n_posts)
     return dataset.batch(batch_size, drop_remainder=True)
 
 

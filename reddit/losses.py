@@ -175,7 +175,7 @@ class MetricsLoss:
     def __init__(self,
                  name=None,
                  loss_type='mse',
-                 huber_delta=None):
+                 huber_delta=1.0):
         self.name = name or f'{loss_type}'
         if loss_type == 'mse':
             self.loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
@@ -196,6 +196,8 @@ class MetricsLoss:
             labels: true score for each label
         '''
         losses = self.loss_fn(model_outs, labels)
-        outs = [tf.reduce_mean(losses, axis=0), model_outs] # across batch?
+        outs = [tf.reduce_mean(losses, axis=0)] + tf.split(model_outs, 
+                                                           num_or_size_splits=model_outs.shape[-1],
+                                                           axis=-1)
         return outs
     
