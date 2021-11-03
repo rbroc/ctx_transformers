@@ -230,7 +230,7 @@ def _run_training(mlm_type,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=True,
+                      eval_before_training=False,
                       test_steps=n_test_steps,
                       update_every=update_every)
 
