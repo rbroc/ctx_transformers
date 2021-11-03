@@ -246,8 +246,6 @@ def _run_training(mlm_type,
                 mask_proportion=.15,
                 batch_size=global_batch_size)
     
-    print(model.summary())
-    
 
 if __name__=='__main__':
     args = parser.parse_args()
