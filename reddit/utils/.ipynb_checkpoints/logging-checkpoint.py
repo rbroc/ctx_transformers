@@ -10,7 +10,7 @@ LOG_DICT = {'triplet': ['losses',
 
 META_DICT = {'triplet': [],
              'classification': ['labels'],
-             'mlm': ['labels'],
+             'mlm': [],
              'mlm_simple': [],
              'agg': ['labels'],
              'posts':['labels']}
