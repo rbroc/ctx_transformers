@@ -30,7 +30,7 @@ parser.add_argument('--log-path', type=str, default=None,
                     help='Path for metrics and checkpoints within ../logs')
 parser.add_argument('--per-replica-batch-size', type=int, default=20,
                     help='Batch size')
-parser.add_argument('--dataset-size', type=int, default=200000,
+parser.add_argument('--dataset-size', type=int, default=100000,
                     help='Number of examples in dataset (train + val)')
 parser.add_argument('--n-epochs', type=int, default=3,
                     help='Number of epochs')
@@ -166,7 +166,7 @@ def _run_training(mlm_type,
     with strategy.scope():
         optimizer = create_optimizer(2e-5, # allow edit
                                      num_train_steps=n_train_steps * n_epochs, # allow edit
-                                     num_warmup_steps=10000) # could change
+                                     num_warmup_steps=50000) # could change
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,

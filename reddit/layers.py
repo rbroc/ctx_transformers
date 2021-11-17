@@ -209,20 +209,23 @@ class HierarchicalAttentionAggregator(layers.Layer):
     def __init__(self, n_contexts, n_tokens, config, relu_dims=768):
         super(HierarchicalAttentionAggregator, self).__init__()
         self.ctx_transf = TFMultiHeadSelfAttention(config, name="attention")
-        self.post_transf_dense = Dense(units=relu_dims, activation='relu')
+        self.post_transf_dense = Dense(units=relu_dims, activation='relu') # why?
         self.post_transf_normalizer = LayerNormalization(epsilon=1e-12)
         self.att_mask = tf.constant(1, shape=[1,n_contexts+1])
         self.padding_matrix = [[0,0], [0,n_tokens-1], [0,0]]
         
     def call(self, hidden_state):
-        cls_tkn = hidden_state[:,0,:]
-        cls_tkn = tf.expand_dims(cls_tkn, axis=0)
+        cls_tkn = hidden_state[:,0,:] # 10 x 768
+        cls_tkn = tf.expand_dims(cls_tkn, axis=0) # 1 x 10 x 768
         cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn,
-                                  self.att_mask, None, False, True)[0][0,:,:]
-        cls_tkn = tf.expand_dims(cls_tkn, axis=1)
-        cls_tkn = tf.pad(cls_tkn, self.padding_matrix)
-        merged = self.post_transf_dense(cls_tkn+hidden_state)
-        hidden_state = self.post_transf_normalizer(merged+hidden_state)
+                                  self.att_mask, 
+                                  None, False, True)[0][0,:,:] # 10 x 768
+        cls_tkn = tf.expand_dims(cls_tkn, axis=1) # 10 x 1 x 768
+        cls_tkn = tf.pad(cls_tkn, self.padding_matrix) # 10 x 512 x 768
+        mask = tf.cast(tf.math.equal(cls_tkn, 0), tf.float32)
+        masked_hidden_state = hidden_state * mask
+        merged = self.post_transf_dense(cls_tkn+masked_hidden_state)
+        hidden_state = self.post_transf_normalizer(merged+masked_hidden_state)
         return hidden_state
 
 

@@ -4,13 +4,16 @@
 # Biencoder, compare dense, add, and attention aggreagtion
     # Concat gives the best result (1 epoch)
 # Standard encoder, compare dense and add
-    # ...
+    # add is slightly better
 
 # First:
-# Biencoder: 3x1 layers, 3 epochs
-# Hierarchial: 2 layers, 3 epochs
-# Standard: 3 layers, 3 epochs
+# Standard: 3 layers, 1 epoch, continue if it works - FAILS
+# Hierarchial: 2 layers, 3 epochs - UP NEXT
+# Biencoder: 3x1 layers, 3 epochs - UP NEXT
+
+# Then, priorities:
 # Set up evaluation
+# Train separable architecture
 
 # Next:
 # Biencoder: 3x2 layers, 3 epochs
@@ -19,18 +22,28 @@
 # Biencoder: use pretrained as token encoder [OPTIONAL]
 # Standard: pretrained [OPTIONAL]
 
-# Priority
-# Define mixed architecture!
+python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
 
-#python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder  --n-layers 3 --n-layers-context-encoder 1 --aggregate add --reset-head
+python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
 
-#python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder  --n-layers 3 --n-layers-context-encoder 1 --aggregate concat --reset-head
+python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
 
-python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder  --n-layers 3 --n-layers-context-encoder 1 --aggregate attention --reset-head
+#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+
+#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+
+#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+
+
+#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+
+#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+
+#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+
 
 # --add-dense 2 --dims 768 768 --activations relu relu --freeze-encoder 0 1 2 3 4 5
 # --pretrained-weights distilbert-base-uncased
-
 
 # Relevant params
 # - Architectures

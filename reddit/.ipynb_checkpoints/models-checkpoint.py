@@ -455,7 +455,7 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         self.hier_last = HierarchicalTransformerBlock(tlayers[-1], 
                                                       self.n_contexts, 
                                                       self.n_tokens, 
-                                                      config)
+                                                      config) # ?
         self.mlm_head = MLMHead(mlm_model, reset=True)
         
         
