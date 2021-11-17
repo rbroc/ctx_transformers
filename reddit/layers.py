@@ -178,22 +178,26 @@ class HierarchicalTransformerBlock(layers.Layer):
                  n_contexts, 
                  n_tokens, 
                  config, 
-                 relu_dims=768):
+                 relu_dims=768,
+                 last=False):
         super(HierarchicalTransformerBlock, self).__init__()
         self.trlayer = trlayer
-        self.attention = HierarchicalAttentionAggregator(n_contexts, 
-                                                         n_tokens, 
-                                                         config, 
-                                                         relu_dims=768)
-    
-    def call(self, hidden_state, mask, last=False):
+        if not last:
+            self.attention = HierarchicalAttentionAggregator(n_contexts, 
+                                                             n_tokens, 
+                                                             config, 
+                                                             relu_dims=768)
+        else:
+            self.attention = None
+
+    def call(self, hidden_state, mask):
         layer_out = self.trlayer(hidden_state, 
                                  mask,
                                  None,
                                  False,
                                  training=True)
         layer_out = layer_out[-1]
-        if last:
+        if self.attention is not None:
             layer_out = self.attention(layer_out)
         return layer_out
 
