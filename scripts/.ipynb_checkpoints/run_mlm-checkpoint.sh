@@ -5,9 +5,14 @@
     # Concat gives the best result (1 epoch)
 # Standard encoder, compare dense and add
     # add is slightly better
+# Standard encoder does not display visibly good behavior
+
+# To consider:
+# Tune hierarchical (hierarchical attention after last?)
+# Experiment with warmup steps?
+# Experiment with learning rate
 
 # First:
-# Standard: 3 layers, 1 epoch, continue if it works - FAILS
 # Hierarchial: 2 layers, 3 epochs - UP NEXT
 # Biencoder: 3x1 layers, 3 epochs - UP NEXT
 
