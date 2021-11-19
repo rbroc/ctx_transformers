@@ -465,7 +465,7 @@ class HierarchicalTransformerForContextMLM(keras.Model):
         mask = example['attention_mask']
         for l in self.hier_layers:
             hidden_state = l(hidden_state, mask)
-        hidden_state = self.hier_last(hidden_state, mask, True)
+        hidden_state = self.hier_last(hidden_state, mask)
         return hidden_state
     
     
