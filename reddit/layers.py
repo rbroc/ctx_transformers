@@ -183,22 +183,25 @@ class HierarchicalTransformerBlock(layers.Layer):
         super(HierarchicalTransformerBlock, self).__init__()
         self.trlayer = trlayer
         if not last:
-            self.attention = HierarchicalAttentionAggregator(n_contexts, 
-                                                             n_tokens, 
-                                                             config, 
-                                                             relu_dims=768)
+            self.hattention = HierarchicalAttentionAggregator(n_contexts, 
+                                                              n_tokens, 
+                                                              config, 
+                                                              relu_dims=768)
         else:
-            self.attention = None
+            self.hattention = None
 
-    def call(self, hidden_state, mask):
-        layer_out = self.trlayer(hidden_state, 
-                                 mask,
-                                 None,
+    def call(self, hidden_state, mask, ctype):
+            
+        # pass input through transformer layer
+        layer_out = self.trlayer(hidden_state,
+                                 mask, # attention mask
+                                 None, # head mask
                                  False,
                                  training=True)
-        layer_out = layer_out[-1]
-        if self.attention is not None:
-            layer_out = self.attention(layer_out)
+        layer_out = layer_out[-1] 
+        # Now pass through hierarchical attention
+        if self.hattention is not None:
+            layer_out = self.hattention(layer_out, ctype)
         return layer_out
 
     
@@ -213,46 +216,25 @@ class HierarchicalAttentionAggregator(layers.Layer):
     def __init__(self, n_contexts, n_tokens, config, relu_dims=768):
         super(HierarchicalAttentionAggregator, self).__init__()
         self.ctx_transf = TFMultiHeadSelfAttention(config, name="attention")
-        self.post_attn_normalizer = LayerNormalization(epsilon=1e-12)
         self.att_mask = tf.constant(1, shape=[1,n_contexts+1])
         self.padding_matrix = [[0,0], [0,n_tokens-1], [0,0]]
         self.post_attn_dense = Dense(units=relu_dims, activation='relu')
         self.post_dense_normalizer = LayerNormalization(epsilon=1e-12)
         
-    def call(self, hidden_state):
+    def call(self, hidden_state, ctype):
         cls_tkn = hidden_state[:,0,:] # 10 x 768
         cls_tkn = tf.expand_dims(cls_tkn, axis=0) # 1 x 10 x 768
-        cls_attn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn, # pass attention ctx
-                                   self.att_mask, 
-                                   None, False, True)[0][0,:,:] # 10 x 768
-        cls_tkn = self.post_attn_normalizer(cls_tkn[0] + cls_attn) # norm + skipconn ctx # 10 x 768  - no skipconn
-        ffn_out = self.post_attn_dense(cls_tkn) # dense ctx # 10 x 768 - remove
-        cls_tkn = self.post_dense_normalizer(ffn_out + cls_tkn) # norm + skipconn ctx # 10 x 768  - remove
+        cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn, # pass attention ctx
+                                  self.att_mask, 
+                                  ctype,
+                                  False, 
+                                  training=True)[0][0,:,:]
         cls_tkn = tf.expand_dims(cls_tkn, axis=1) # 10 x 1 x 768 
         cls_tkn = tf.pad(cls_tkn, self.padding_matrix) # 10 x 512 x 768
-        mask = tf.cast(tf.math.equal(cls_tkn, 0), tf.float32)
-        hidden_state = hidden_state * mask + cls_tkn # replace cls [no add!]
+        merged = self.post_attn_dense(cls_tkn+hidden_state) # sum with previous cls and do dense
+        hidden_state = self.post_dense_normalizer(merged+hidden_state) # this is summing with original cls, again...
+        # what if we sum with dense only?
         return hidden_state
-        
-        # Alternative 1 - no skipgram no dense (try with 2)
-        # cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn, # pass attention ctx
-                                    #self.att_mask, 
-                                    #None, False, True)[0][0,:,:]
-        # cls_tkn = self.post_attn_normalizer(cls_tkn)
-        # remove post_attn_dense
-        # remove post_dense_normalizer
-        
-        # Alternative 2 - do skipgram no dense add to cls only (try with 2)
-        # cls_attn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn, # pass attention ctx
-                                    #self.att_mask, 
-                                    #None, False, True)[0][0,:,:]
-        # cls_tkn = self.post_attn_normalizer(cls_tkn[0] + cls_attn)
-        
-        # Alternative 3 - only do context last, (normalize?), add to targets, normalize
-        
-        # Other interpretations
-        # Model may learn to zero out the CLS token?
-        
 
 class ContextPooler(layers.Layer):
     ''' Context pooler for simple batch transformer for context MLM '''
@@ -283,3 +265,5 @@ class BiencoderContextPooler(ContextPooler):
         ctx = tf.repeat(ctx, n_tokens, axis=1) # bs x 512 x 768
         return ctx
     
+    
+# Hierarchical attention layer for standard!
