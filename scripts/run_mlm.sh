@@ -1,49 +1,27 @@
 #!/bin/sh
 
 # HIERARCHICAL:
-# Skipconn after attention?
-# Dense after attention?
-# Skipconn after dense?
-# Do / do not sum tokens
-    # Try next:
-        # No skipconn and no dense after attention - just feed attention directly to next steps
+# Try old hierarchical
+# Try old standard (w/ add)
+# Run hierarchical for several epochs
+# Run standard for several epochs
+# Run biencoder for several epochs
+# Meanwhile:
+# Implement new
+# Try hierarchical head on pretrained (single context)
+# Try hierarchical multi-context
+# Try biencoder multi-context
 
-# TESTS
-# Biencoder, compare dense, add, and attention aggreagtion
-    # Concat gives the best result (1 epoch)
-# Standard encoder, compare dense and add
-    # add is slightly better
-# Standard encoder does not display visibly good behavior
-
-# To consider:
-# Tune hierarchical (hierarchical attention after last?)
-# Experiment with warmup steps?
-# Experiment with learning rate
-
-# First:
-# Hierarchial: 2 layers, 3 epochs - UP NEXT
-# Biencoder: 3x1 layers, 3 epochs - UP NEXT
-
-# Then, priorities:
-# Set up evaluation
-# Train separable architecture
-
-# Next:
-# Biencoder: 3x2 layers, 3 epochs
-# Hierarchical: 3 layers, try 1 epoch then maybe 3 epochs
-# Standard: 6 layers, 3 epoch
-# Biencoder: use pretrained as token encoder [OPTIONAL]
-# Standard: pretrained [OPTIONAL]
 
 #python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
 
 #python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
 
-#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+python3 train_mlm.py --log-path hierarchical_checkpoint --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
 
-python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+python3 train_mlm.py --log-path hierarchical_checkpoint --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
 
-python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+python3 train_mlm.py --log-path hierarchical_checkpoint --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
 
 #python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
 
