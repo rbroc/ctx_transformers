@@ -222,18 +222,17 @@ class HierarchicalAttentionAggregator(layers.Layer):
         self.post_dense_normalizer = LayerNormalization(epsilon=1e-12)
         
     def call(self, hidden_state, ctype):
-        cls_tkn = hidden_state[:,0,:] # 10 x 768
-        cls_tkn = tf.expand_dims(cls_tkn, axis=0) # 1 x 10 x 768
-        cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn, # pass attention ctx
+        cls_tkn = hidden_state[:,0,:]
+        cls_tkn = tf.expand_dims(cls_tkn, axis=0)
+        cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn,
                                   self.att_mask, 
                                   ctype,
                                   False, 
                                   training=True)[0][0,:,:]
-        cls_tkn = tf.expand_dims(cls_tkn, axis=1) # 10 x 1 x 768 
-        cls_tkn = tf.pad(cls_tkn, self.padding_matrix) # 10 x 512 x 768
-        merged = self.post_attn_dense(cls_tkn+hidden_state) # sum with previous cls and do dense
-        hidden_state = self.post_dense_normalizer(merged+hidden_state) # this is summing with original cls, again...
-        # what if we sum with dense only?
+        cls_tkn = tf.expand_dims(cls_tkn, axis=1)
+        cls_tkn = tf.pad(cls_tkn, self.padding_matrix)
+        merged = self.post_attn_dense(cls_tkn+hidden_state)
+        hidden_state = self.post_dense_normalizer(merged+hidden_state)
         return hidden_state
 
 class ContextPooler(layers.Layer):
