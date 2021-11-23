@@ -1,12 +1,20 @@
 #!/bin/sh
 
-# HIERARCHICAL:
-# Skipconn after attention?
-# Dense after attention?
-# Skipconn after dense?
-# Do / do not sum tokens
-    # Try next:
-        # No skipconn and no dense after attention - just feed attention directly to next steps
+# To dos:
+# NOT SEPARABLE
+# Keep doing standard - also subreddit, and longer epochs
+# Try pretrained standard with frozen and hierarchical head
+# Try non-pretraiend (smaller) standard with hierarchical head
+# Try hierarchical, other combos
+# Try biencoder, longer running
+# Evaluate
+
+# SEPARABLE
+# Try standard with head, not separable
+# Try hierarchical separable
+# Try biencoder with separable sentence encoder 
+
+# Add divide by two
 
 # TESTS
 # Biencoder, compare dense, add, and attention aggreagtion
@@ -15,25 +23,6 @@
     # add is slightly better
 # Standard encoder does not display visibly good behavior
 
-# To consider:
-# Tune hierarchical (hierarchical attention after last?)
-# Experiment with warmup steps?
-# Experiment with learning rate
-
-# First:
-# Hierarchial: 2 layers, 3 epochs - UP NEXT
-# Biencoder: 3x1 layers, 3 epochs - UP NEXT
-
-# Then, priorities:
-# Set up evaluation
-# Train separable architecture
-
-# Next:
-# Biencoder: 3x2 layers, 3 epochs
-# Hierarchical: 3 layers, try 1 epoch then maybe 3 epochs
-# Standard: 6 layers, 3 epoch
-# Biencoder: use pretrained as token encoder [OPTIONAL]
-# Standard: pretrained [OPTIONAL]
 
 #python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
 
@@ -41,19 +30,13 @@
 
 #python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
 
-python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
 
-python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
 
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 2 --aggregate add --reset-head
 
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
-
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
-
-
-# --add-dense 2 --dims 768 768 --activations relu relu --freeze-encoder 0 1 2 3 4 5
-# --pretrained-weights distilbert-base-uncased
+python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 2 --aggregate add --reset-head
 
 # Relevant params
 # - Architectures
