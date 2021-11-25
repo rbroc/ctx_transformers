@@ -7,7 +7,8 @@ from .layers import (MLMHead,
                      ContextPooler,
                      BiencoderContextPooler,
                      SimpleCompressor,
-                     VAECompressor)
+                     VAECompressor,
+                     HierarchicalHead)
 from .losses import (TripletLossBase, TripletLossFFN,
                      ClassificationLoss,
                      MLMLoss, MetricsLoss)
@@ -34,6 +35,7 @@ __all__ = ['MLMHead',
            'BiencoderContextPooler',
            'SimpleCompressor',
            'VAECompressor',
+           'HierarchicalHead',
            'TripletLossBase', 
            'TripletLossFFN', 
            'ClassificationLoss',

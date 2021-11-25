@@ -191,7 +191,6 @@ class HierarchicalTransformerBlock(layers.Layer):
             self.hattention = None
 
     def call(self, hidden_state, mask, ctype):
-            
         # pass input through transformer layer
         layer_out = self.trlayer(hidden_state,
                                  mask, # attention mask
@@ -231,11 +230,28 @@ class HierarchicalAttentionAggregator(layers.Layer):
                                   training=True)[0][0,:,:]
         cls_tkn = tf.expand_dims(cls_tkn, axis=1) # 10 x 1 x 768 
         cls_tkn = tf.pad(cls_tkn, self.padding_matrix) # 10 x 512 x 768
-        merged = self.post_attn_dense(cls_tkn+hidden_state) # sum with previous cls and do dense
-        hidden_state = self.post_dense_normalizer(merged+hidden_state) # this is summing with original cls, again...
-        # what if we sum with dense only?
+        merged = self.post_attn_dense(cls_tkn+hidden_state)
+        hidden_state = self.post_dense_normalizer(merged+hidden_state)
         return hidden_state
 
+
+class HierarchicalHead(HierarchicalTransformerBlock):
+    ''' Hierarchical head for standard context encoder '''
+    def call(self, inps):
+        if len(inps) == 3:
+            hidden_state, mask, ctype = inps
+        else:
+            hidden_state, mask = inps
+            ctype = None
+        hidden_state = self.hattention(hidden_state, ctype)
+        hidden_state = self.trlayer(hidden_state,
+                                    mask,
+                                    None,
+                                    False,
+                                    training=True)[0]
+        return hidden_state
+    
+    
 class ContextPooler(layers.Layer):
     ''' Context pooler for simple batch transformer for context MLM '''
     def __init__(self):

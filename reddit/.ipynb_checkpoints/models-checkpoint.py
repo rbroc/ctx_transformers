@@ -17,7 +17,8 @@ from reddit.layers import (BatchTransformerContextAggregator,
                            BiencoderContextPooler,
                            MLMHead, 
                            SimpleCompressor, 
-                           VAECompressor)
+                           VAECompressor,
+                           HierarchicalHead)
 
 
 class BatchTransformer(keras.Model):
@@ -398,17 +399,18 @@ class BatchTransformerForContextMLM(keras.Model):
                                                                 activations=activations)
         elif self.aggregate == 'attention':
             config = transformer.config_class(vocab_size=vocab_size, n_layers=1)
-            self.aggregator = HierarchicalAttentionAggregator(n_contexts, 
-                                                              n_tokens, 
-                                                              config, 
-                                                              relu_dims=768)
-   
-
+            tl = transformer(config).layers[0]._layers[1].layer[0]
+            self.aggregator = HierarchicalHead(tl,
+                                               self.n_contexts, 
+                                               self.n_tokens, 
+                                               config)
+            
     def _encode_batch(self, example):
         out = self.encoder(input_ids=example['input_ids'], 
                             attention_mask=example['attention_mask'])
         return out.last_hidden_state
     
+ 
     def call(self, input):
         hidden_state = tf.vectorized_map(self._encode_batch, 
                                          elems=input)
@@ -419,10 +421,12 @@ class BatchTransformerForContextMLM(keras.Model):
             aggd = self.aggregator(hidden_state, ctx)
         else:
             if self.separable:
-                ctype = input['head_mask'][0]
+                ctype = input['head_mask']
+                aggd = tf.vectorized_map(self.aggregator, 
+                                         elems=[hidden_state, input['attention_mask'], ctype])
             else:
-                ctype = None
-            aggd = self.aggregator(hidden_state, ctype)
+                aggd = tf.vectorized_map(self.aggregator, 
+                                         elems=[hidden_state, input['attention_mask']])
         logits = self.mlm_head(aggd[:,0,:,:])
         return logits
 

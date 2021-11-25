@@ -72,7 +72,7 @@ class Trainer:
         if start_epoch > 0:
             self.load_epoch = start_epoch - 1
         else:
-            self.load_epoch = None
+            self.load_epoch = None    
         self.logger = Logger(self, log_path)
         self.model_ckpt = ModelCheckpoint(self, checkpoint_device, log_path)
         self.opt_ckpt = OptimizerCheckpoint(self, log_path)
