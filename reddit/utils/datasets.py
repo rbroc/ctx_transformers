@@ -140,7 +140,7 @@ def remove_short_targets(x, mask_proportion):
                         0.0)
 
     
-def mask_and_stack_mlm(dataset, is_context=True, mask_proportion=.15):
+def mask_and_stack_mlm(dataset, is_context=True, is_combined=False, mask_proportion=.15):
     ''' Masks a random item in the target tensor (but could be more, 
         see docstring for _get_mask) for each example, stacks 
         target and context (if context is given), returns dataset 
@@ -155,14 +155,26 @@ def mask_and_stack_mlm(dataset, is_context=True, mask_proportion=.15):
                                                                            x['mask_token_id'],
                                                                            mask_proportion)
                                                                ))))
-    dataset = dataset.map(lambda x: {'input_ids': tf.concat(values=[x[f] 
-                                                                    for f in iid_feat],
-                                                            axis=0),
-                                     'attention_mask': tf.concat(values=[x[f] 
-                                                                         for f in mask_feat],
-                                                                 axis=0),
-                                     'id': x['example_id'],
-                                     'labels': x['labels']})
+    if not is_combined:
+        dataset = dataset.map(lambda x: {'input_ids': tf.concat(values=[x[f] 
+                                                                        for f in iid_feat],
+                                                                axis=0),
+                                         'attention_mask': tf.concat(values=[x[f] 
+                                                                             for f in mask_feat],
+                                                                     axis=0),
+                                         'id': x['example_id'],
+                                         'labels': x['labels']})
+    else:
+        dataset = dataset.map(lambda x: {'input_ids': tf.concat(values=[x[f] 
+                                                                        for f in iid_feat],
+                                                                axis=0),
+                                         'attention_mask': tf.concat(values=[x[f] 
+                                                                             for f in mask_feat],
+                                                                     axis=0),
+                                         'head_mask': tf.cast(x['head_mask'], tf.float32),
+                                         'id': x['example_id'],
+                                         'labels': x['labels']})
+                              
     return dataset
     
 

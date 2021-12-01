@@ -270,7 +270,7 @@ class Trainer:
                                         **transform_kwargs)
                 if shuffle:
                     print('Shuffling training data...')
-                    dataset = dataset.shuffle(int(self.steps_per_epoch/3)) # int(1)
+                    dataset = dataset.shuffle(int(self.steps_per_epoch/2)) # int(1)
                     
                 if self.distributed:
                     dataset = self.strategy.experimental_distribute_dataset(dataset)

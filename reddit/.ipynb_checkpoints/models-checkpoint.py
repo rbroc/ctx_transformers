@@ -604,7 +604,8 @@ class BiencoderForContextMLM(keras.Model):
             hmask = None
         ctx = self.context_encoder(input_ids=example['input_ids'][1:,:], # bs x n_ctx x 512
                                    attention_mask=example['attention_mask'][1:,:],
-                                   head_mask=hmask) # bs x n_ctx x 512
+                                   #head_mask=hmask
+                                  ) # bs x n_ctx x 512
         return ctx.last_hidden_state
     
             

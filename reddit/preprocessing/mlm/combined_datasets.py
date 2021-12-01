@@ -49,7 +49,7 @@ def _generate_example(d, tknzr, g_t):
     elif g_t == 'subreddit':
         hm = tf.constant([0,0,0,0,0,0,1,1,1,1,1,1])
     else:
-        hm = tf.constant([0,0,0,0,0,0,0,0,0,0,0,0])
+        hm = tf.constant([0,0,0,0,0,0,0,0,0,0,0,0]) # for 12 heads
     hm = tf.reshape(hm, [12,1,1])
     for di in d:
         trgt, ctxs = [_tknz(di[k], tknzr) for k in ['target', 'context']]
@@ -62,7 +62,7 @@ def _generate_example(d, tknzr, g_t):
 
 def make_dataset(f, outpath, tknzr, g_t, add, n_shards=1):
     nvars = 7
-    ds_type = 'mlm'
+    ds_type = 'mlm_combined'
     fid = f.split('/')[-1].split('.')[0]
     fid_1, fid_2 = fid.split('_')
     fid = fid_1 + '_' + str(int(fid_2)+add)
@@ -78,6 +78,7 @@ if __name__=='__main__':
     tknzr = AutoTokenizer.from_pretrained(args.tokenizer_weights)
     g_types = ['author', 'random', 'subreddit']
     splits = ['train', 'test']
+    pool = Pool(processes=args.n_cores)
     for i, g_t in enumerate(g_types):
         for s in splits:
             if s == 'train':
@@ -88,11 +89,10 @@ if __name__=='__main__':
             OUTPATH = MLM_DS_PATH / str(args.dataset_name) / 'combined' / s
             OUTPATH.mkdir(exist_ok=True, parents=True)
             fs = glob.glob(str(JSON_PATH / '*'))
-            pool = Pool(processes=args.n_cores)
             pool.starmap(make_dataset, zip(fs,
                                            [OUTPATH]*len(fs),
                                            [tknzr]*len(fs),
                                            [g_t]*len(fs),
                                            [add]*len(fs),
                                            [args.n_shards]*len(fs)))
-            pool.close()
+            #pool.close()

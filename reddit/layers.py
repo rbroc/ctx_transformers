@@ -118,11 +118,15 @@ class BatchTransformerContextAggregator(layers.Layer):
                                                           for i in range(add_dense)] + 
                                                          [Dense(units=relu_dims, activation='relu')])
         self.post_agg_normalizer = LayerNormalization(epsilon=1e-12)
+        self.agg_fn = agg_fn
         
     def call(self, hidden_state, norm_ctx):
         aggd = self.agg_layer([hidden_state, norm_ctx])
         aggd = self.post_agg_dense(aggd)
-        aggd = self.post_agg_normalizer(aggd + hidden_state)
+        if self.agg_fn == 'add':
+            aggd = self.post_agg_normalizer((aggd + hidden_state) / 2)
+        else:
+            aggd = self.post_agg_normalizer(aggd + hidden_state)
         return aggd
     
     
@@ -131,7 +135,10 @@ class BiencoderSimpleAggregator(BatchTransformerContextAggregator):
     def call(self, target, contexts):
         aggd = self.agg_layer([target, contexts])
         aggd_ffn = self.post_agg_dense(aggd)
-        out = self.post_agg_normalizer(aggd_ffn + target)
+        if self.agg_fn == 'add':
+            out = self.post_agg_normalizer((aggd_ffn + target) / 2)
+        else:
+            out = self.post_agg_normalizer(aggd_ffn + target)
         return out
 
             
