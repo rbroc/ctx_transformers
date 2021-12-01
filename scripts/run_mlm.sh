@@ -1,12 +1,19 @@
 #!/bin/sh
 
+# 1l is actually 2l
+# Do standard for longer - TRY!
+# Doing hierarchical - NOT WORKING
+# Do biencoder (eval) - further training + eval - TRY!
+# Try mixed 
+
 # *** NEXT *** 
 # NOT SEPARABLE
-# Try pretrained standard with frozen and hierarchical head - THU/FRI
-# Try non-pretrained (smaller) standard with hierarchical head - SAT/SUN
-# Keep doing standard - also subreddit, and longer epochs - WED + SUN/MON
-# Longer hierarchical - TUE/WED
-# Try biencoder, longer running (with add? or with attention?) - THU/SAT
+# All freeze one epoch longer
+# Try non-pretrained (smaller) standard with hierarchical head - SOME RESULT - continue
+# Try non-pretrained (smaller) standard with add head - TINY RESULT
+# Longer hierarchical - TO DO
+# Keep doing standard - also subreddit, and longer epochs - TO DO
+# Try biencoder, longer running  - TO DO
 # Evaluate
 
 # SEPARABLE
@@ -27,30 +34,7 @@
 # Biencoder: concat gives the best result (1 epoch)
 # Standard encoder: add is better
 
-# DO
-#python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
+# Hierarchical
+python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 1 --mlm-type hier --n-layers 2
 
-# DO (AND DO RANDOM LONGER?)
-#python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
-
-# DO LONGER (2 layers)
-#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
-
-# DO LONGER (2 layers)
-#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
-
-# DO (2 layers)
-#python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
-
-# DO LONGER (AND ADD RANDOM AND SUBREDDIT)
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 2 --aggregate add --reset-head
-
-# REDO
-#python3 train_mlm.py --log-path standard_hierhead --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 2 --aggregate attention --reset-head
-
-# REDO
-# python3 train_mlm.py --log-path standard_hierhead --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 2 --aggregate attention --reset-head
-
-python3 train_mlm.py --log-path standard_hierhead_pretrained --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --start-epoch 0 --update-every 1 --mlm-type standard --aggregate attention --reset-head --pretrained-weights distilbert-base-uncased --freeze-encoder 0 1 2 3 4 5
-
-python3 train_mlm.py --log-path standard_hierhead_pretrained --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 1000000 --n-epochs 1 --start-epoch 0 --update-every 1 --mlm-type standard --aggregate attention --reset-head --pretrained-weights distilbert-base-uncased --freeze-encoder 0 1 2 3 4 5
+python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 1 --mlm-type hier --n-layers 2

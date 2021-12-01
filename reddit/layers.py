@@ -221,15 +221,15 @@ class HierarchicalAttentionAggregator(layers.Layer):
         self.post_dense_normalizer = LayerNormalization(epsilon=1e-12)
         
     def call(self, hidden_state, ctype):
-        cls_tkn = hidden_state[:,0,:] # 10 x 768
-        cls_tkn = tf.expand_dims(cls_tkn, axis=0) # 1 x 10 x 768
+        cls_tkn = hidden_state[:,0,:] # 11 x 768
+        cls_tkn = tf.expand_dims(cls_tkn, axis=0) # 1 x 11 x 768
         cls_tkn = self.ctx_transf(cls_tkn, cls_tkn, cls_tkn, # pass attention ctx
                                   self.att_mask, 
                                   ctype,
                                   False, 
                                   training=True)[0][0,:,:]
-        cls_tkn = tf.expand_dims(cls_tkn, axis=1) # 10 x 1 x 768 
-        cls_tkn = tf.pad(cls_tkn, self.padding_matrix) # 10 x 512 x 768
+        cls_tkn = tf.expand_dims(cls_tkn, axis=1) # 11 x 1 x 768 
+        cls_tkn = tf.pad(cls_tkn, self.padding_matrix) # 11 x 512 x 768
         merged = self.post_attn_dense(cls_tkn+hidden_state)
         hidden_state = self.post_dense_normalizer(merged+hidden_state)
         return hidden_state

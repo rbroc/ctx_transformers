@@ -118,7 +118,7 @@ class ModelCheckpoint(Checkpoint):
         epoch_pattern = f'epoch-{self.trainer.load_epoch}'
         ckpt_file = tf.train.latest_checkpoint(str(self.model_path/epoch_pattern))
         print(f'**** Loading {ckpt_file} ****')
-        self.trainer.model.load_weights(ckpt_file, options=self.options)
+        self.trainer.model.load_weights(ckpt_file, options=self.options).expect_partial()
 
     def save(self, epoch, batch):
         ''' Saves model checkpoint 

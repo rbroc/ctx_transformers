@@ -126,7 +126,10 @@ class Trainer:
 
     def _gradient_update(self, accumulated_grads):
         ''' Define gradient update '''
-        avg_grads = [a/(self.update_every) for a in accumulated_grads]
+        if self.update_every != 1:
+            avg_grads = [a/(self.update_every) for a in accumulated_grads]
+        else:
+            avg_grads = [a for a in accumulated_grads] # division crashes at first step
         self.optimizer.apply_gradients(zip(avg_grads, 
                                            self.model.trainable_variables))
         
@@ -161,6 +164,7 @@ class Trainer:
                 outs, grads = self._run_distributed_train_step(example, labels)
                 if n == 0:
                     accumulated_grads = grads # initialize gradients
+                    
                 else:
                     accumulated_grads = self._accumulate_gradients(grads, 
                                                                    accumulated_grads)
