@@ -406,11 +406,17 @@ class BatchTransformerForContextMLM(keras.Model):
                                                config)
             
     def _encode_batch(self, example):
-        out = self.encoder(input_ids=example['input_ids'], 
-                            attention_mask=example['attention_mask'])
-        return out.last_hidden_state
-    
- 
+        hidden_state = self.encoder.layers[0]._layers[0](example['input_ids'])
+        mask = example['attention_mask']
+        if self.separable:
+            ctype = example['head_mask']
+        else:
+            ctype = None
+        for l in self.encoder.layers[0]._layers[1].layer:
+            hidden_state = l(hidden_state, mask, ctype,
+                             False, training=True) # double-check
+        return hidden_state
+        
     def call(self, input):
         hidden_state = tf.vectorized_map(self._encode_batch, 
                                          elems=input)
