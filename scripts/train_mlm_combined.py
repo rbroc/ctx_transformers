@@ -24,8 +24,6 @@ parser = argparse.ArgumentParser()
 # Training loop argument
 parser.add_argument('--dataset-name', type=str, default=None,
                     help='Name of dataset to use')
-parser.add_argument('--context-type', type=str, default='single',
-                   help='Type of grouping')
 parser.add_argument('--log-path', type=str, default=None,
                     help='Path for metrics and checkpoints within ../logs')
 parser.add_argument('--per-replica-batch-size', type=int, default=20,
@@ -89,7 +87,6 @@ parser.set_defaults(test_only=False, reset_head=False)
 def _run_training(mlm_type,
                   log_path, 
                   dataset_name,
-                  context_type,
                   per_replica_batch_size, 
                   dataset_size,
                   n_epochs,
@@ -111,22 +108,17 @@ def _run_training(mlm_type,
                   test_only):
 
     # Define type of training
-    if context_type == 'single':
-        ds_type = 'mlm_simple'
-        model_class = BatchTransformerForMLM
-        is_context = False
-    else:
-        ds_type = 'mlm'
-        if mlm_type == 'standard':
-            model_class = BatchTransformerForContextMLM
-        elif mlm_type == 'hier':
-            model_class = HierarchicalTransformerForContextMLM
-        elif mlm_type == 'biencoder':
-            model_class = BiencoderForContextMLM
-        is_context = True
+    ds_type = 'mlm_combined'
+    if mlm_type == 'standard':
+        model_class = BatchTransformerForContextMLM
+    elif mlm_type == 'hier':
+        model_class = HierarchicalTransformerForContextMLM
+    elif mlm_type == 'biencoder':
+        model_class = BiencoderForContextMLM
+    is_context = True
    
     # Config
-    METRICS_PATH = Path('..') / 'logs' / ds_type.split('_')[0] / log_path / context_type 
+    METRICS_PATH = Path('..') / 'logs' / 'mlm_combined' / log_path / 'combined' 
     METRICS_PATH.mkdir(parents=True, exist_ok=True)
     gpus = tf.config.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpus))
@@ -143,7 +135,7 @@ def _run_training(mlm_type,
     strategy = tf.distribute.MirroredStrategy(devices=logical_gpus)
     
     # Set up dataset 
-    pattern = str(DATA_PATH/ dataset_name / context_type / 'train'/ 'batch*')
+    pattern = str(DATA_PATH/ dataset_name / 'combined' / 'train'/ 'batch*')
     fs_train = glob.glob(pattern)
     ds = load_tfrecord(fs_train, deterministic=True, ds_type=ds_type)
     ds_train, ds_val, _ = split_dataset(ds, 
@@ -165,10 +157,10 @@ def _run_training(mlm_type,
     # initialize optimizer, model and loss object
     with strategy.scope():
         optimizer = create_optimizer(2e-5, # allow edit
-                                     num_train_steps=n_train_steps * 5, #* n_epochs,
-                                     num_warmup_steps=n_train_steps * 5 / 100 ) # n_epochs / 10) 
+                                     num_train_steps=n_train_steps * 1, #* n_epochs,
+                                     num_warmup_steps=n_train_steps * 1 / 10) # n_epochs / 10) 
         
-        if context_type == 'single':
+        if mlm_type == 'standard':
             model = model_class(transformer=TFDistilBertForMaskedLM,
                                 pretrained_weights=pretrained_weights,
                                 trained_encoder_weights=trained_encoder_weights,
@@ -176,44 +168,37 @@ def _run_training(mlm_type,
                                 n_layers=n_layers,
                                 freeze_encoder=freeze_encoder,
                                 reset_head=reset_head,
-                                vocab_size=vocab_size)
-        else:
-            if mlm_type == 'standard':
-                model = model_class(transformer=TFDistilBertForMaskedLM,
-                                    pretrained_weights=pretrained_weights,
-                                    trained_encoder_weights=trained_encoder_weights,
-                                    trained_encoder_class=TFDistilBertModel,
-                                    n_layers=n_layers,
-                                    freeze_encoder=freeze_encoder,
-                                    reset_head=reset_head,
-                                    add_dense=add_dense,
-                                    dims=dims,
-                                    activations=activations,
-                                    n_tokens=n_tokens,
-                                    aggregate=aggregate,
-                                    n_contexts=n_contexts,
-                                    vocab_size=vocab_size)
-            elif mlm_type == 'hier':
-                model = model_class(transformer=TFDistilBertForMaskedLM,
-                                    n_layers=n_layers,
-                                    n_tokens=n_tokens,
-                                    n_contexts=n_contexts,
-                                    vocab_size=vocab_size)
-            elif mlm_type == 'biencoder':
-                model = model_class(transformer=TFDistilBertForMaskedLM,
-                                    pretrained_token_encoder_weights=pretrained_weights,
-                                    trained_token_encoder_weights=trained_encoder_weights,
-                                    trained_token_encoder_class=TFDistilBertModel,
-                                    n_layers_token_encoder=n_layers,
-                                    n_layers_context_encoder=n_layers_context_encoder,
-                                    freeze_token_encoder=freeze_encoder,
-                                    add_dense=add_dense,
-                                    dims=dims,
-                                    activations=activations,
-                                    n_tokens=n_tokens,
-                                    aggregate=aggregate,
-                                    n_contexts=n_contexts,
-                                    vocab_size=vocab_size)
+                                add_dense=add_dense,
+                                dims=dims,
+                                activations=activations,
+                                n_tokens=n_tokens,
+                                aggregate=aggregate,
+                                n_contexts=n_contexts,
+                                vocab_size=vocab_size,
+                                separable=True)
+        elif mlm_type == 'hier':
+            model = model_class(transformer=TFDistilBertForMaskedLM,
+                                n_layers=n_layers,
+                                n_tokens=n_tokens,
+                                n_contexts=n_contexts,
+                                vocab_size=vocab_size,
+                                separable=True)
+        elif mlm_type == 'biencoder':
+            model = model_class(transformer=TFDistilBertForMaskedLM,
+                                pretrained_token_encoder_weights=pretrained_weights,
+                                trained_token_encoder_weights=trained_encoder_weights,
+                                trained_token_encoder_class=TFDistilBertModel,
+                                n_layers_token_encoder=n_layers,
+                                n_layers_context_encoder=n_layers_context_encoder,
+                                freeze_token_encoder=freeze_encoder,
+                                add_dense=add_dense,
+                                dims=dims,
+                                activations=activations,
+                                n_tokens=n_tokens,
+                                aggregate=aggregate,
+                                n_contexts=n_contexts,
+                                vocab_size=vocab_size,
+                                separable=True)
         loss = MLMLoss()
         
 
@@ -237,14 +222,15 @@ def _run_training(mlm_type,
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=False, # saving time
+                shuffle=True, # saving time
                 transform=mlm_transform,
                 transform_test=True,
                 test_only=test_only,
                 labels=True, 
-                is_context=is_context,
+                is_context=True,
                 mask_proportion=.15,
-                batch_size=global_batch_size)
+                batch_size=global_batch_size,
+                is_combined=True)
     
 
 if __name__=='__main__':
@@ -252,7 +238,6 @@ if __name__=='__main__':
     _run_training(mlm_type=args.mlm_type,
                   log_path=args.log_path, 
                   dataset_name=args.dataset_name,
-                  context_type=args.context_type,
                   per_replica_batch_size=args.per_replica_batch_size, 
                   dataset_size=args.dataset_size,
                   n_epochs=args.n_epochs,
