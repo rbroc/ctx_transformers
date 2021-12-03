@@ -14,6 +14,7 @@ import glob
 from pathlib import Path
 import argparse
 import tensorflow as tf
+import itertools
 from official.nlp.optimization import create_optimizer
 
 DATA_PATH = Path('..') /'reddit'/ 'data' / 'datasets'/ 'mlm'
@@ -136,15 +137,23 @@ def _run_training(mlm_type,
     
     # Set up dataset 
     pattern = str(DATA_PATH/ dataset_name / 'combined' / 'train'/ 'batch*')
-    fs_train = glob.glob(pattern)
-    ds = load_tfrecord(fs_train, deterministic=True, ds_type=ds_type)
-    ds_train, ds_val, _ = split_dataset(ds, 
-                                        size=dataset_size, 
-                                        perc_train=.8, 
-                                        perc_val=.2, 
-                                        perc_test=.0)
+    fs = glob.glob(pattern)
+    ntr = int(dataset_size * .8 / 10000)
+    nval = int(dataset_size * .2 / 10000)
+    fs_train = list(itertools.chain(*[(fs[i], 
+                                       fs[i+200], 
+                                       fs[i+400]) 
+                                      for i in range(int(ntr/3))]))
+    fs_val = list(itertools.chain(*[(fs[int(ntr/3)+1], 
+                                     fs[int(ntr/3)+200], 
+                                     fs[int(ntr/3)+1+400]) 
+                                      for i in range(int(nval/3))]))
+    print(len(fs_train))
+    print(len(fs_val))
     
     
+    ds_train = load_tfrecord(fs_train, deterministic=False, ds_type=ds_type)
+    ds_val = load_tfrecord(fs_val, deterministic=False, ds_type=ds_type)
     
     # Compute number of batches
     global_batch_size = len(logical_gpus) * per_replica_batch_size
@@ -157,8 +166,8 @@ def _run_training(mlm_type,
     # initialize optimizer, model and loss object
     with strategy.scope():
         optimizer = create_optimizer(2e-5, # allow edit
-                                     num_train_steps=n_train_steps * 1, #* n_epochs,
-                                     num_warmup_steps=n_train_steps * 1 / 10) # n_epochs / 10) 
+                                     num_train_steps=n_train_steps * 5, #* n_epochs,1
+                                     num_warmup_steps=n_train_steps * 5 / 10) # n_epochs / 10) 
         
         if mlm_type == 'standard':
             model = model_class(transformer=TFDistilBertForMaskedLM,
@@ -222,7 +231,7 @@ def _run_training(mlm_type,
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=True, # saving time
+                shuffle=False,#True, # saving time
                 transform=mlm_transform,
                 transform_test=True,
                 test_only=test_only,
