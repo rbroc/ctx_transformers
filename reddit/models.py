@@ -406,11 +406,17 @@ class BatchTransformerForContextMLM(keras.Model):
                                                config)
             
     def _encode_batch(self, example):
-        out = self.encoder(input_ids=example['input_ids'], 
-                            attention_mask=example['attention_mask'])
-        return out.last_hidden_state
-    
- 
+        hidden_state = self.encoder._layers[0](example['input_ids'])
+        mask = example['attention_mask']
+        if self.separable:
+            ctype = example['head_mask']
+        else:
+            ctype = None
+        for l in self.encoder._layers[1].layer:
+            hidden_state = l(hidden_state, mask, ctype,
+                             False, training=True) # double-check
+        return hidden_state
+        
     def call(self, input):
         hidden_state = tf.vectorized_map(self._encode_batch, 
                                          elems=input)
@@ -546,7 +552,8 @@ class BiencoderForContextMLM(keras.Model):
                  aggregate='concat',
                  n_contexts=10,
                  vocab_size=30522,
-                 separable=False):
+                 separable=False,
+                 share_embedder=False):
         
         # Name parameters
         freeze_str = 'no' if not freeze_token_encoder else '_'.join(list(freeze_token_encoder))
@@ -571,6 +578,7 @@ class BiencoderForContextMLM(keras.Model):
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
         self.separable = separable
+        self.share_embedder = share_embedder
         
         # Define components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -598,16 +606,19 @@ class BiencoderForContextMLM(keras.Model):
 
             
     def _encode_context(self, example):
-        if self.separable:
-            hmask = example['head_mask']
+        if self.share_embedder:
+            hidden_state = self.token_encoder._layers[0](example['input_ids'][1:,:])
         else:
-            hmask = None
-        ctx = self.context_encoder(input_ids=example['input_ids'][1:,:], # bs x n_ctx x 512
-                                   attention_mask=example['attention_mask'][1:,:],
-                                   head_mask=hmask
-                                  ) # bs x n_ctx x 512
-        return ctx.last_hidden_state
-    
+            hidden_state = self.context_encoder._layers[0](example['input_ids'][1:,:])
+        mask = example['attention_mask'][1:,:]
+        if self.separable:
+            ctype = example['head_mask']
+        else:
+            ctype = None
+        for l in self.context_encoder._layers[1].layer:
+            hidden_state = l(hidden_state, mask, ctype,
+                             False, training=True) # double-check
+        return hidden_state
             
     def call(self, input):
         target = self.token_encoder(input_ids=input['input_ids'][:,0,:], # input: bs x 512
