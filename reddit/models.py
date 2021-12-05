@@ -414,7 +414,7 @@ class BatchTransformerForContextMLM(keras.Model):
             ctype = None
         for l in self.encoder._layers[1].layer:
             hidden_state = l(hidden_state, mask, ctype,
-                             False, training=True) # double-check
+                             False, training=True)[0]
         return hidden_state
         
     def call(self, input):
@@ -617,14 +617,14 @@ class BiencoderForContextMLM(keras.Model):
             ctype = None
         for l in self.context_encoder._layers[1].layer:
             hidden_state = l(hidden_state, mask, ctype,
-                             False, training=True) # double-check
+                             False, training=True)[0] # double-check
         return hidden_state
             
     def call(self, input):
-        target = self.token_encoder(input_ids=input['input_ids'][:,0,:], # input: bs x 512
-                                    attention_mask=input['attention_mask'][:,0,:]).last_hidden_state # input: bs x 512
+        target = self.token_encoder(input_ids=input['input_ids'][:,0,:],
+                                    attention_mask=input['attention_mask'][:,0,:]).last_hidden_state
         contexts = tf.vectorized_map(self._encode_context, 
-                                     elems=input)[:,:,0,:] # bs x n_ctx x 768
+                                     elems=input)[:,:,0,:]
         if self.aggregate != 'attention':
             contexts = self.context_pooler(contexts, self.n_tokens)
         target = self.aggregator(target, contexts)
