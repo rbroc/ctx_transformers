@@ -119,7 +119,7 @@ def _run_training(mlm_type,
     is_context = True
    
     # Config
-    METRICS_PATH = Path('..') / 'logs' / 'mlm_combined' / log_path / 'combined' 
+    METRICS_PATH = Path('..') / 'logs' / 'mlm_combined' / log_path / 'combined_alt' 
     METRICS_PATH.mkdir(parents=True, exist_ok=True)
     gpus = tf.config.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpus))
@@ -136,7 +136,7 @@ def _run_training(mlm_type,
     strategy = tf.distribute.MirroredStrategy(devices=logical_gpus)
     
     # Set up dataset 
-    pattern = str(DATA_PATH/ dataset_name / 'combined' / 'train'/ 'batch*')
+    pattern = str(DATA_PATH/ dataset_name / 'combined_alt' / 'train'/ 'batch*')
     fs = glob.glob(pattern)
     ntr = int(dataset_size * .8 / 10000)
     nval = int(dataset_size * .2 / 10000)

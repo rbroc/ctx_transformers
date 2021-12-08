@@ -123,22 +123,22 @@ class BatchTransformerContextAggregator(layers.Layer):
     def call(self, hidden_state, norm_ctx):
         aggd = self.agg_layer([hidden_state, norm_ctx])
         aggd = self.post_agg_dense(aggd)
-        if self.agg_fn == 'add':
-            aggd = self.post_agg_normalizer((aggd + hidden_state) / 2)
-        else:
-            aggd = self.post_agg_normalizer(aggd + hidden_state)
+        #if self.agg_fn == 'add':
+        #    aggd = self.post_agg_normalizer((aggd + hidden_state) / 2)
+        #else:
+        aggd = self.post_agg_normalizer(aggd + hidden_state)
         return aggd
     
     
 class BiencoderSimpleAggregator(BatchTransformerContextAggregator):
     ''' Simple aggregator for Biencoder model '''
     def call(self, target, contexts):
-        aggd = self.agg_layer([target, contexts])
-        aggd_ffn = self.post_agg_dense(aggd)
-        if self.agg_fn == 'add':
-            out = self.post_agg_normalizer((aggd_ffn + target) / 2)
-        else:
-            out = self.post_agg_normalizer(aggd_ffn + target)
+        aggd = self.agg_layer([target, contexts]) # aggregate
+        aggd_ffn = self.post_agg_dense(aggd) # dense
+        #if self.agg_fn == 'add':
+        #    out = self.post_agg_normalizer((aggd_ffn + target) / 2)
+        #else:
+        out = self.post_agg_normalizer(aggd_ffn + target) # normalize
         return out
 
             

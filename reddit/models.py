@@ -606,7 +606,7 @@ class BiencoderForContextMLM(keras.Model):
 
             
     def _encode_context(self, example):
-        if self.share_embedder:
+        if self.share_embedder is True:
             hidden_state = self.token_encoder._layers[0](example['input_ids'][1:,:])
         else:
             hidden_state = self.context_encoder._layers[0](example['input_ids'][1:,:])
