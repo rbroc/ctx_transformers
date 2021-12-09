@@ -429,10 +429,13 @@ class BatchTransformerForContextMLM(keras.Model):
             if self.separable:
                 ctype = input['head_mask']
                 aggd = tf.vectorized_map(self.aggregator, 
-                                         elems=[hidden_state, input['attention_mask'], ctype])
+                                         elems=[hidden_state, 
+                                                input['attention_mask'], 
+                                                ctype])
             else:
                 aggd = tf.vectorized_map(self.aggregator, 
-                                         elems=[hidden_state, input['attention_mask']])
+                                         elems=[hidden_state, 
+                                                input['attention_mask']])
         logits = self.mlm_head(aggd[:,0,:,:])
         return logits
 
@@ -553,7 +556,7 @@ class BiencoderForContextMLM(keras.Model):
                  n_contexts=10,
                  vocab_size=30522,
                  separable=False,
-                 #share_embedder=False
+                 share_embedder=False
                 ):
         
         # Name parameters
@@ -579,7 +582,7 @@ class BiencoderForContextMLM(keras.Model):
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
         self.separable = separable
-        #self.share_embedder = share_embedder
+        self.share_embedder = share_embedder
         
         # Define components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -603,7 +606,7 @@ class BiencoderForContextMLM(keras.Model):
                                                         dims=dims,
                                                         activations=activations)
         else:
-            self.aggregator = BiencoderAttentionAggregator(include_head=True)
+            self.aggregator = BiencoderAttentionAggregator()
 
             
     def _encode_context(self, example):
