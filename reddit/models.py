@@ -553,7 +553,8 @@ class BiencoderForContextMLM(keras.Model):
                  n_contexts=10,
                  vocab_size=30522,
                  separable=False,
-                 share_embedder=False):
+                 #share_embedder=False
+                ):
         
         # Name parameters
         freeze_str = 'no' if not freeze_token_encoder else '_'.join(list(freeze_token_encoder))
@@ -578,7 +579,7 @@ class BiencoderForContextMLM(keras.Model):
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
         self.separable = separable
-        self.share_embedder = share_embedder
+        #self.share_embedder = share_embedder
         
         # Define components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -606,19 +607,22 @@ class BiencoderForContextMLM(keras.Model):
 
             
     def _encode_context(self, example):
-        if self.share_embedder is True:
-            hidden_state = self.token_encoder._layers[0](example['input_ids'][1:,:])
-        else:
-            hidden_state = self.context_encoder._layers[0](example['input_ids'][1:,:])
-        mask = example['attention_mask'][1:,:]
-        if self.separable:
-            ctype = example['head_mask']
-        else:
-            ctype = None
-        for l in self.context_encoder._layers[1].layer:
-            hidden_state = l(hidden_state, mask, ctype,
-                             False, training=True)[0] # double-check
-        return hidden_state
+        
+        output = self.context_encoder(input_ids=example['input_ids'][1:,:],
+                                      attention_mask=example['attention_mask'][1:,:]).last_hidden_state
+        #if self.share_embedder is True:
+        #    hidden_state = self.token_encoder._layers[0](example['input_ids'][1:,:])
+        #else:
+        #    hidden_state = self.context_encoder._layers[0](example['input_ids'][1:,:])
+        #mask = example['attention_mask'][1:,:]
+        #if self.separable:
+        #    ctype = example['head_mask']
+        #else:
+        #    ctype = None
+        #for l in self.context_encoder._layers[1].layer:
+        #    hidden_state = l(hidden_state, mask, ctype,
+        #                     False, training=True)[0] # double-check
+        return output #hidden_state
             
     def call(self, input):
         target = self.token_encoder(input_ids=input['input_ids'][:,0,:],

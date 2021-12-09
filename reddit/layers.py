@@ -126,7 +126,7 @@ class BatchTransformerContextAggregator(layers.Layer):
         #if self.agg_fn == 'add':
         #    aggd = self.post_agg_normalizer((aggd + hidden_state) / 2)
         #else:
-        aggd = self.post_agg_normalizer(aggd + hidden_state)
+        aggd = self.post_agg_normalizer((aggd + hidden_state) / 2) # remove?
         return aggd
     
     
@@ -138,7 +138,7 @@ class BiencoderSimpleAggregator(BatchTransformerContextAggregator):
         #if self.agg_fn == 'add':
         #    out = self.post_agg_normalizer((aggd_ffn + target) / 2)
         #else:
-        out = self.post_agg_normalizer(aggd_ffn + target) # normalize
+        out = self.post_agg_normalizer(aggd_ffn + target) # remove?
         return out
 
             
