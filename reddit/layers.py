@@ -136,12 +136,13 @@ class BiencoderSimpleAggregator(BatchTransformerContextAggregator):
 
             
 class BiencoderAttentionAggregator(layers.Layer):
+    # Should edit such that it uses TFMultiHeadAttention rather than multiheadattention
     ''' Attention aggregator for biencoder
     Args:
         num_heads (int): number of attention heads
         model_dim (int): model dimensionality
     '''
-    def __init__(self, num_heads=6, model_dim=768):
+    def __init__(self, num_heads=6, model_dim=768): # edited from 6
         super(BiencoderAttentionAggregator, self).__init__()
         self.agg_layer = MultiHeadAttention(num_heads=num_heads, 
                                             key_dim=model_dim)
