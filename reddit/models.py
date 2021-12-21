@@ -356,7 +356,8 @@ class BatchTransformerForContextMLM(keras.Model):
                  aggregate='concatenate',
                  n_contexts=10,
                  vocab_size=30522,
-                 separable=False):
+                 separable_body=False,
+                 separable_head=False):
         
         # Name
         freeze_str = 'no' if not freeze_encoder else '_'.join(list(freeze_encoder))
@@ -379,7 +380,8 @@ class BatchTransformerForContextMLM(keras.Model):
         self.aggregate = aggregate
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
-        self.separable = separable
+        self.separable_body = separable_body
+        self.separable_head = separable_head
         
         # Define model components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -408,7 +410,7 @@ class BatchTransformerForContextMLM(keras.Model):
     def _encode_batch(self, example):
         hidden_state = self.encoder._layers[0](example['input_ids'])
         mask = example['attention_mask']
-        if self.separable:
+        if self.separable_body:
             ctype = example['head_mask']
         else:
             ctype = None
@@ -426,7 +428,7 @@ class BatchTransformerForContextMLM(keras.Model):
                                       self.n_tokens)
             aggd = self.aggregator(hidden_state, ctx)
         else:
-            if self.separable:
+            if self.separable_head:
                 ctype = input['head_mask']
                 aggd = tf.vectorized_map(self.aggregator, 
                                          elems=[hidden_state, 
@@ -555,8 +557,8 @@ class BiencoderForContextMLM(keras.Model):
                  aggregate='concat',
                  n_contexts=10,
                  vocab_size=30522,
-                 separable=False,
-                 share_embedder=False
+                 separable_body=False,
+                 separable_head=False
                 ):
         
         # Name parameters
@@ -581,8 +583,8 @@ class BiencoderForContextMLM(keras.Model):
         self.aggregate = aggregate
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
-        self.separable = separable
-        self.share_embedder = share_embedder
+        self.separable_body = separable_body
+        self.separable_head = separable_head
         
         # Define components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -610,17 +612,12 @@ class BiencoderForContextMLM(keras.Model):
 
             
     def _encode_context(self, example):
-        #output = self.context_encoder(input_ids=example['input_ids'][1:,:],
-        #                              attention_mask=example['attention_mask'][1:,:]).last_hidden_state
-        #if self.share_embedder is True:
-        #    hidden_state = self.token_encoder._layers[0](example['input_ids'][1:,:])
-        #else:
         hidden_state = self.context_encoder._layers[0](example['input_ids'][1:,:])
         mask = example['attention_mask'][1:,:]
-        #if self.separable:
-        ctype = example['head_mask']
-        #else:
-        #    ctype = None
+        if self.separable_body:
+            ctype = example['head_mask']
+        else:
+            ctype = None
         for l in self.context_encoder._layers[1].layer:
             hidden_state = l(hidden_state, mask, ctype,
                              False, training=True)[0] # double-check
