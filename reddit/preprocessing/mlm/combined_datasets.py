@@ -45,11 +45,11 @@ def _generate_example(d, tknzr, g_t):
         tknzr (transformers.Tokenizer): Tokenizer
     '''
     if g_t == 'author':
-        hm = tf.constant([1,1,1,1,1,1,0,0,0,0,0,0])
+        hm = tf.constant([1,1,1,0,0,0,1,1,1,1,1,1])
     elif g_t == 'subreddit':
-        hm = tf.constant([0,0,0,0,0,0,1,1,1,1,1,1])
+        hm = tf.constant([0,0,0,1,1,1,1,1,1,1,1,1])
     else:
-        hm = tf.constant([0,0,0,0,0,0,0,0,0,0,0,0]) # for 12 heads
+        hm = tf.constant([0,0,0,0,0,0,1,1,1,1,1,1]) # for 12 heads
     hm = tf.reshape(hm, [12,1,1])
     for di in d:
         trgt, ctxs = [_tknz(di[k], tknzr) for k in ['target', 'context']]
@@ -86,7 +86,7 @@ if __name__=='__main__':
             else:
                 add = i*10
             JSON_PATH = MLM_JSON_PATH / str(args.dataset_name) / g_t / s
-            OUTPATH = MLM_DS_PATH / str(args.dataset_name) / 'combined' / s
+            OUTPATH = MLM_DS_PATH / str(args.dataset_name) / 'combined_alt' / s
             OUTPATH.mkdir(exist_ok=True, parents=True)
             fs = glob.glob(str(JSON_PATH / '*'))
             pool.starmap(make_dataset, zip(fs,

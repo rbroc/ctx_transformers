@@ -1,26 +1,59 @@
 #!/bin/sh
 
-# *** NEXT *** 
-# PROJECT 1:
-# Train standard for longer (head + add?) -> 3 epochs, to start with
-# Train hierarchical for longer -> 3 epochs, to start with
-# Train biencoder -> 3 epochs, to start with
+# Models
+# STANDARD: Biencoder 1/2
+# STANDARD: 3 layers standard with sum
+# SEPARABLE: 3 layers body separable (v2)
+# SEPARABLE: 3 layers head separable (v1)
+# SEPARABLE: 1 layers head separable (v1)
+# STANDARD: 3 layers standard with attention
+# STANDARD: Biencoder 1/3
+# SEPARABLE: Separable body biencoder with add, v2
 
-# PROJECT 2:
-# Try one separable - PRIORITY
+# Optional: 1 layer hierarchical, longer - NOT FOR NOW
+# Optional: new biencoder  - NOT FOR NOW
 
-# DOUBTS
-# Remember to shuffle
-# Ensure stability with random contexts when masking the head? Or remove random?
-# Divide by 2 when sum?
+# Goals
+# STANDARD
+    # Set up triplet loss benchmarking
+    # Benchmark the biencoder and standard non-separable on triplet
+# SEPARABLE
+    # Set up test model
+    # Benchmark on triplet
+    # Implement biencoder separable head and run
 
-# REMINDER
-# Hierarchical: masks the hierarchical head
-# Biencoder: masks attention in the context
-# Standard: masks the hierarchical head, if present
+# Hierarchical 1 layer
+python3 train_mlm.py --log-path hierarchical_1layers --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 1
 
+# STANDARD: Biencoder 1
+python3 train_mlm.py --log-path biencoder_2_1 --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 3 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 2 --n-layers-context-encoder 1 --reset-head
 
-# Hierarchical
-python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 1 --mlm-type hier --n-layers 2
+python3 train_mlm.py --log-path biencoder_2_1 --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 3 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 2 --n-layers-context-encoder 1 --reset-head
 
-python3 train_mlm.py --log-path hierarchical --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 1 --mlm-type hier --n-layers 2
+# STANDARD: Standard 3 layers add
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate add --reset-head
+
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate add --reset-head
+
+# SEPARABLE: Standard head mask combined
+python3 train_mlm_combined.py --log-path standard_3layers --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate attention --reset-head
+
+python3 train_mlm_combined.py --log-path standard_3layers --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 1 --aggregate attention --reset-head
+
+# SEPARABLE: Standard body mask combined
+python3 train_mlm_combined_v2.py --log-path standard_3layers --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate add --reset-head
+
+# STANDARD: Standard 3 layers hierarchical head
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate attention --reset-head
+
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate attention --reset-head
+
+# STANDARD: Biencoder 2
+python3 train_mlm.py --log-path biencoder_3_1 --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --n-layers-context-encoder 1 --reset-head
+
+python3 train_mlm.py --log-path biencoder_3_1 --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --n-layers-context-encoder 1 --reset-head
+
+# SEPARABLE: Biencoder combined (try other head)
+python3 train_mlm_combined.py --log-path biencoder_2_1 --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --n-layers-context-encoder 1 --aggregate add --reset-head
+
+python3 train_mlm_combined_v2.py --log-path biencoder_2_1 --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --n-layers-context-encoder 1 --aggregate add --reset-head
