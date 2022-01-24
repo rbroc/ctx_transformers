@@ -37,7 +37,8 @@ def classification_transform(dataset,
 def mlm_transform(dataset, 
                   is_context=True,
                   mask_proportion=.15,
-                  batch_size=4):
+                  batch_size=4,
+                  is_combined=False):
     '''Transform pipeline for mlm dataset
     Args:
         dataset: dataset to transform
@@ -46,7 +47,8 @@ def mlm_transform(dataset,
         batch_size (int): global batch size (i.e., number of 
             replicas * effective batch size)
     '''
-    dataset = mask_and_stack_mlm(dataset, is_context, mask_proportion)
+    dataset = mask_and_stack_mlm(dataset, is_context, 
+                                 is_combined, mask_proportion)
     return dataset.batch(batch_size, drop_remainder=True)
 
 

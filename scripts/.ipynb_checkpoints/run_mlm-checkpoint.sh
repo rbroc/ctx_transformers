@@ -1,51 +1,59 @@
 #!/bin/sh
 
-# HIERARCHICAL:
-# Try old hierarchical
-# Try old standard (w/ add)
-# Run hierarchical for several epochs
-# Run standard for several epochs
-# Run biencoder for several epochs
-# Meanwhile:
-# Implement new
-# Try hierarchical head on pretrained (single context)
-# Try hierarchical multi-context
-# Try biencoder multi-context
+# Models
+# STANDARD: Biencoder 1/2
+# STANDARD: 3 layers standard with sum
+# SEPARABLE: 3 layers body separable (v2)
+# SEPARABLE: 3 layers head separable (v1)
+# SEPARABLE: 1 layers head separable (v1)
+# STANDARD: 3 layers standard with attention
+# STANDARD: Biencoder 1/3
+# SEPARABLE: Separable body biencoder with add, v2
 
+# Optional: 1 layer hierarchical, longer - NOT FOR NOW
+# Optional: new biencoder  - NOT FOR NOW
 
-#python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
+# Goals
+# STANDARD
+    # Set up triplet loss benchmarking
+    # Benchmark the biencoder and standard non-separable on triplet
+# SEPARABLE
+    # Set up test model
+    # Benchmark on triplet
+    # Implement biencoder separable head and run
 
-#python3 train_mlm.py --log-path biencoder --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --aggregate concat --reset-head --n-layers-context-encoder 1
+# Hierarchical 1 layer
+python3 train_mlm.py --log-path hierarchical_1layers --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 1
 
-python3 train_mlm.py --log-path hierarchical_checkpoint --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+# STANDARD: Biencoder 1
+python3 train_mlm.py --log-path biencoder_2_1 --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 3 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 2 --n-layers-context-encoder 1 --reset-head
 
-python3 train_mlm.py --log-path hierarchical_checkpoint --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+python3 train_mlm.py --log-path biencoder_2_1 --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 3 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 2 --n-layers-context-encoder 1 --reset-head
 
-python3 train_mlm.py --log-path hierarchical_checkpoint --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type hier --n-layers 3
+# STANDARD: Standard 3 layers add
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate add --reset-head
 
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate add --reset-head
 
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+# SEPARABLE: Standard head mask combined
+python3 train_mlm_combined.py --log-path standard_3layers --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate attention --reset-head
 
-#python3 train_mlm.py --log-path standard --dataset-name 10context_large --context-type subreddit --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 1 --start-epoch 0 --update-every 8 --mlm-type standard  --n-layers 3 --aggregate add --reset-head
+python3 train_mlm_combined.py --log-path standard_3layers --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 1 --aggregate attention --reset-head
 
+# SEPARABLE: Standard body mask combined
+python3 train_mlm_combined_v2.py --log-path standard_3layers --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate add --reset-head
 
-# --add-dense 2 --dims 768 768 --activations relu relu --freeze-encoder 0 1 2 3 4 5
-# --pretrained-weights distilbert-base-uncased
+# STANDARD: Standard 3 layers hierarchical head
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate attention --reset-head
 
-# Relevant params
-# - Architectures
-    # standard:
-        # pretrained vs no pretrained - tested 
-            # if pretrained, freeze?
-        # aggregation via add or concat - tested
-        # add dense and dims for after aggregation, before layernorm - tested
-    # hier: 
-        # n_layers
-    # biencoder
-        # pretrained vs. no-pretrained
-            # if pretrained, freeze
-        # n_layers and n_layers context encoder
-        # aggregate (concat, add, attention)
-        # add dense and dims after aggregation
-        # context pooler pools and normalizes
+python3 train_mlm.py --log-path standard_3layers --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --aggregate attention --reset-head
+
+# STANDARD: Biencoder 2
+python3 train_mlm.py --log-path biencoder_3_1 --dataset-name 10context_large --context-type author --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --n-layers-context-encoder 1 --reset-head
+
+python3 train_mlm.py --log-path biencoder_3_1 --dataset-name 10context_large --context-type random --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 8 --mlm-type biencoder --n-layers 3 --n-layers-context-encoder 1 --reset-head
+
+# SEPARABLE: Biencoder combined (try other head)
+python3 train_mlm_combined.py --log-path biencoder_2_1 --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --n-layers-context-encoder 1 --aggregate add --reset-head
+
+python3 train_mlm_combined_v2.py --log-path biencoder_2_1 --dataset-name 10context_large --per-replica-batch-size 1 --dataset-size 2000000 --n-epochs 2 --start-epoch 0 --update-every 1 --mlm-type standard --n-layers 3 --n-layers-context-encoder 1 --aggregate add --reset-head

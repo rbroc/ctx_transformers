@@ -165,8 +165,8 @@ def _run_training(mlm_type,
     # initialize optimizer, model and loss object
     with strategy.scope():
         optimizer = create_optimizer(2e-5, # allow edit
-                                     num_train_steps=n_train_steps * n_epochs, # allow edit
-                                     num_warmup_steps=50000) # could change
+                                     num_train_steps=n_train_steps * 5, #* n_epochs,
+                                     num_warmup_steps=int(n_train_steps/8) )#* 5 / 100,  # n_epochs / 10) 
         
         if context_type == 'single':
             model = model_class(transformer=TFDistilBertForMaskedLM,

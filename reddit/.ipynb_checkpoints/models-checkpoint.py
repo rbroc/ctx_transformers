@@ -17,7 +17,8 @@ from reddit.layers import (BatchTransformerContextAggregator,
                            BiencoderContextPooler,
                            MLMHead, 
                            SimpleCompressor, 
-                           VAECompressor)
+                           VAECompressor,
+                           HierarchicalHead)
 
 
 class BatchTransformer(keras.Model):
@@ -354,7 +355,9 @@ class BatchTransformerForContextMLM(keras.Model):
                  n_tokens=512,
                  aggregate='concatenate',
                  n_contexts=10,
-                 vocab_size=30522):
+                 vocab_size=30522,
+                 separable_body=False,
+                 separable_head=False):
         
         # Name
         freeze_str = 'no' if not freeze_encoder else '_'.join(list(freeze_encoder))
@@ -377,6 +380,8 @@ class BatchTransformerForContextMLM(keras.Model):
         self.aggregate = aggregate
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
+        self.separable_body = separable_body
+        self.separable_head = separable_head
         
         # Define model components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -389,24 +394,50 @@ class BatchTransformerForContextMLM(keras.Model):
         freeze_encoder_weights(self.encoder, freeze_encoder)
         self.mlm_head = MLMHead(mlm_model, reset=reset_head)
         self.context_pooler = ContextPooler()
-        self.aggregator = BatchTransformerContextAggregator(agg_fn=self.aggregate, 
-                                                            add_dense=add_dense,
-                                                            dims=dims,
-                                                            activations=activations)
-   
-
+        if self.aggregate in ['add', 'concat']:
+            self.aggregator = BatchTransformerContextAggregator(agg_fn=self.aggregate, 
+                                                                add_dense=add_dense,
+                                                                dims=dims,
+                                                                activations=activations)
+        elif self.aggregate == 'attention':
+            config = transformer.config_class(vocab_size=vocab_size, n_layers=1)
+            tl = transformer(config).layers[0]._layers[1].layer[0]
+            self.aggregator = HierarchicalHead(tl,
+                                               self.n_contexts, 
+                                               self.n_tokens, 
+                                               config)
+            
     def _encode_batch(self, example):
-        out = self.encoder(input_ids=example['input_ids'], 
-                            attention_mask=example['attention_mask'])
-        return out.last_hidden_state
-    
+        hidden_state = self.encoder._layers[0](example['input_ids'])
+        mask = example['attention_mask']
+        if self.separable_body:
+            ctype = example['head_mask']
+        else:
+            ctype = None
+        for l in self.encoder._layers[1].layer:
+            hidden_state = l(hidden_state, mask, ctype,
+                             False, training=True)[0]
+        return hidden_state
+        
     def call(self, input):
         hidden_state = tf.vectorized_map(self._encode_batch, 
                                          elems=input)
-        ctx = self.context_pooler(hidden_state, 
-                                  self.n_contexts, 
-                                  self.n_tokens)
-        aggd = self.aggregator(hidden_state, ctx)
+        if self.aggregate != 'attention':
+            ctx = self.context_pooler(hidden_state, 
+                                      self.n_contexts, 
+                                      self.n_tokens)
+            aggd = self.aggregator(hidden_state, ctx)
+        else:
+            if self.separable_head:
+                ctype = input['head_mask']
+                aggd = tf.vectorized_map(self.aggregator, 
+                                         elems=[hidden_state, 
+                                                input['attention_mask'], 
+                                                ctype])
+            else:
+                aggd = tf.vectorized_map(self.aggregator, 
+                                         elems=[hidden_state, 
+                                                input['attention_mask']])
         logits = self.mlm_head(aggd[:,0,:,:])
         return logits
 
@@ -429,7 +460,8 @@ class HierarchicalTransformerForContextMLM(keras.Model):
                  n_layers=3,
                  n_tokens=512,
                  n_contexts=10,
-                 vocab_size=30522):
+                 vocab_size=30522,
+                 separable=False):
         
         # Name
         if name is None:
@@ -456,16 +488,21 @@ class HierarchicalTransformerForContextMLM(keras.Model):
                                                       self.n_contexts, 
                                                       self.n_tokens, 
                                                       config, 
-                                                      last=True) # ?
+                                                      last=True)
         self.mlm_head = MLMHead(mlm_model, reset=True)
+        self.separable = separable
         
         
     def _encode_batch(self, example):
         hidden_state = self.embedder(example['input_ids'])
         mask = example['attention_mask']
+        if self.separable:
+            ctype = example['head_mask']
+        else:
+            ctype = None
         for l in self.hier_layers:
-            hidden_state = l(hidden_state, mask)
-        hidden_state = self.hier_last(hidden_state, mask)
+            hidden_state = l(hidden_state, mask, ctype)
+        hidden_state = self.hier_last(hidden_state, mask, ctype)
         return hidden_state
     
     
@@ -519,7 +556,10 @@ class BiencoderForContextMLM(keras.Model):
                  n_tokens=512,
                  aggregate='concat',
                  n_contexts=10,
-                 vocab_size=30522):
+                 vocab_size=30522,
+                 separable_body=False,
+                 separable_head=False
+                ):
         
         # Name parameters
         freeze_str = 'no' if not freeze_token_encoder else '_'.join(list(freeze_token_encoder))
@@ -543,6 +583,8 @@ class BiencoderForContextMLM(keras.Model):
         self.aggregate = aggregate
         self.output_signature = tf.float32
         self.n_contexts = n_contexts
+        self.separable_body = separable_body
+        self.separable_head = separable_head
         
         # Define components
         mlm_model = make_mlm_model_from_params(transformer,
@@ -566,19 +608,26 @@ class BiencoderForContextMLM(keras.Model):
                                                         dims=dims,
                                                         activations=activations)
         else:
-            self.aggregator = BiencoderAttentionAggregator(include_head=True)
+            self.aggregator = BiencoderAttentionAggregator()
 
             
     def _encode_context(self, example):
-        ctx = self.context_encoder(input_ids=example['input_ids'][1:,:], # bs x n_ctx x 512
-                                   attention_mask=example['attention_mask'][1:,:]) # bs x n_ctx x 512
-        return ctx.last_hidden_state
-    
+        hidden_state = self.context_encoder._layers[0](example['input_ids'][1:,:])
+        mask = example['attention_mask'][1:,:]
+        if self.separable_body:
+            ctype = example['head_mask']
+        else:
+            ctype = None
+        for l in self.context_encoder._layers[1].layer:
+            hidden_state = l(hidden_state, mask, ctype,
+                             False, training=True)[0] # double-check
+        return hidden_state # output
             
     def call(self, input):
-        target = self.token_encoder(input_ids=input['input_ids'][:,0,:], # input: bs x 512
-                                    attention_mask=input['attention_mask'][:,0,:]).last_hidden_state # input: bs x 512
-        contexts = tf.vectorized_map(self._encode_context, elems=input)[:,:,0,:] # bs x n_ctx x 768
+        target = self.token_encoder(input_ids=input['input_ids'][:,0,:],
+                                    attention_mask=input['attention_mask'][:,0,:]).last_hidden_state
+        contexts = tf.vectorized_map(self._encode_context, 
+                                     elems=input)[:,:,0,:]
         if self.aggregate != 'attention':
             contexts = self.context_pooler(contexts, self.n_tokens)
         target = self.aggregator(target, contexts)
@@ -650,4 +699,5 @@ class BatchTransformerForMetrics(keras.Model):
         out = self.head(out)
         return out
 
+    
     
