@@ -11,7 +11,9 @@ We feed models a target sequence and a number of ‘context’ sequences (i.e., 
 
 #### Models
 We experiment with three DistilBERT-inspired architectures: a bi-encoder (where context and target are fed to two separate encoders), a ‘batch’ encoder (single encoder with added context aggregation and target-context combination layers) and a hierarchical encoder (applying attention across [CLS] tokens in between standard transformer layers to integrate information across contexts and target sequence). The benefits of this training protocol are evaluated both by comparing their MLM performance with no-context MLM training and to random-context training, as well as on a triplet-loss author/subreddit discrimination task. We also experiment with selective masking of attention heads based on the type of context provided (author vs subreddit) to simultaneously produce separable context representations.
+They look (roughly) like this:
 
+![img](misc/architectures.jpeg)
 
 #### Rationale
 The importance of this project is two-fold. First, this way of tuning models to produce context-aware representations may provide intrinsic advantages in NLP tasks (e.g., for MLM, knowledge of the author may make it easier to accurately reconstruct missing words), without substantial increase in model complexity. Secondly, text-based representations of text authors could be used to predict individual traits, following the intuition that linguistic behavior is systematically influenced by personality, experiences, etc.
