@@ -1,8 +1,0 @@
-*.DS_Store
-*/__pycache__
-*.egg-info
-.pytest_cache/
-*.pyc
-reddit/data/**
-logs/**
-*/.ipynb_checkpoints
