@@ -11,7 +11,8 @@ from .layers import (MLMHead,
                      HierarchicalHead)
 from .losses import (TripletLossBase, TripletLossFFN,
                      ClassificationLoss,
-                     MLMLoss, MetricsLoss)
+                     MLMLoss, MetricsLoss,
+                     SubredditClassificationLoss)
 from .models import (BatchTransformer,
                      BatchTransformerClassifier, 
                      BatchTransformerFFN,
@@ -41,6 +42,7 @@ __all__ = ['MLMHead',
            'ClassificationLoss',
            'MLMLoss',
            'MetricsLoss',
+           'SubredditClassificationLoss',
            'BatchTransformer', 
            'BatchTransformerFFN',
            'BatchTransformerForMLM', 

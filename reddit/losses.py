@@ -106,7 +106,7 @@ class ClassificationLoss:
     def __init__(self, name=None):
         super().__init__()
         self.name = name or 'classification-loss'
-        self.loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=False,
+        self.loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=False, #?
                                                           reduction=tf.keras.losses.Reduction.NONE)
     
     def __call__(self, probs, labels):
@@ -175,7 +175,7 @@ class MetricsLoss:
     def __init__(self,
                  name=None,
                  loss_type='mse',
-                 huber_delta=1.0):
+                 huber_delta=None):
         self.name = name or f'{loss_type}'
         if loss_type == 'mse':
             self.loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
@@ -201,3 +201,34 @@ class MetricsLoss:
                                                            axis=-1)
         return outs
     
+class SubredditClassificationLoss:
+    ''' Classification loss for subreddit classificationk '''
+    def __init__(self, name=None, n_labels=20, pos_weights=None):
+        super().__init__()
+        self.name = name or 'classification-loss'
+        self.n_labels = n_labels
+        self.pos_weights = pos_weights
+    
+    def __call__(self, probs, labels):
+        loss = tf.nn.weighted_cross_entropy_with_logits(labels, 
+                                                        probs,
+                                                        pos_weight=self.pos_weights)
+        is_one = tf.cast(tf.greater(probs, .0), tf.float32)
+        tp = tf.reduce_sum(labels * is_one, axis=-1) / self.n_labels # correct
+        fn = tf.reduce_sum(tf.cast(((is_one - labels) == -1), 
+                                   tf.float32), axis=-1) / self.n_labels
+        fp = tf.reduce_sum(tf.cast(((is_one - labels) == 1), 
+                                   tf.float32), axis=-1) / self.n_labels
+        tn = 1 - tp - fn - fp
+
+        metric = tf.cast(is_one == tf.cast(labels, tf.float32),
+                         tf.float32)
+        precision = tf.divide(tf.reduce_sum(labels * is_one, axis=-1),
+                              tf.reduce_sum(is_one, axis=-1))
+        recall = tf.divide(tf.reduce_sum(labels * is_one, axis=-1),
+                           tf.reduce_sum(labels, axis=-1))
+        outs = [tf.reduce_mean(o, axis=0) 
+                #for o in [loss, metric]]
+                for o in [loss, recall, precision, metric, tp, tn, fp, fn]]
+        return outs
+

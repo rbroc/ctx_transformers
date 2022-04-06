@@ -26,8 +26,6 @@ parser.add_argument('--log-path', type=str, default=None,
                     help='Path for metrics and checkpoints within ../logs')
 parser.add_argument('--per-replica-batch-size', type=int, default=20,
                     help='Batch size')
-parser.add_argument('--dataset-size', type=int, default=200000,
-                    help='Number of examples in dataset (train + val)')
 parser.add_argument('--n-epochs', type=int, default=3,
                     help='Number of epochs')        
 parser.add_argument('--start-epoch', type=int, default=0,
@@ -47,7 +45,7 @@ parser.add_argument('--n-neg', type=int, default=1,
                     help='Number of negative examples')
 # Model arguments
 parser.add_argument('--pretrained-weights', type=str, 
-                    default='distilbert-base-uncased',
+                    default=None,
                     help='Pretrained huggingface model')
 parser.add_argument('--trained-encoder-weights', type=str, default=None,
                     help='Path to trained encoder weights to load (hf format)')
@@ -60,7 +58,7 @@ parser.add_argument('--intermediate-size', type=int, default=None,
 parser.add_argument('--pooling', type=str, default='cls',
                     help='Whether to compress via pooling or other ways')
 parser.add_argument('--vocab-size', type=int, default=30522,
-                    help='Vocab size (relevant if newn architecture')
+                    help='Vocab size (relevant if new architecture')
 parser.add_argument('--n-layers', type=int, default=None,
                     help='Nr layers if not pretrained')
 # Arguments for FFN triplet
@@ -74,18 +72,21 @@ parser.add_argument('--activations', nargs='+', help='Activations in layers',
 # Define boolean args
 parser.add_argument('--test-only', dest='test_only', action='store_true',
                     help='Whether to only run one test epoch')
+parser.add_argument('--filter-by-n', dest='filter_by_n', action='store_true',
+                    help='Whether to select only posts that have n_anchor')
 parser.set_defaults(test_only=False)
+parser.set_defaults(filter_by_n=False)
 
 
 def _run_training(log_path, 
                   dataset_name,
                   triplet_type,
                   per_replica_batch_size, 
-                  dataset_size,
                   n_epochs,
                   start_epoch,
                   pad_anchor,
                   n_anchor,
+                  filter_by_n,
                   n_pos,
                   n_neg,
                   loss_margin,
@@ -132,16 +133,13 @@ def _run_training(log_path,
     # Set up dataset 
     pattern = str(DATA_PATH / dataset_name / 'train'/ 'batch*')
     fs_train = glob.glob(pattern)
-    ds = load_tfrecord(fs_train, deterministic=True, ds_type='triplet')
-    ds_train, ds_val, _ = split_dataset(ds, 
-                                        size=dataset_size, 
-                                        perc_train=.8, 
-                                        perc_val=.2, 
-                                        perc_test=.0)
+    fs_val = glob.glob(str(DATA_PATH / dataset_name / 'val'/ 'batch*'))
+    ds_train = load_tfrecord(fs_train, deterministic=True, ds_type='triplet')
+    ds_val = load_tfrecord(fs_val, deterministic=True, ds_type='triplet')
     
     # Compute number of batches
     global_batch_size = len(logical_gpus) * per_replica_batch_size
-    if n_anchor:
+    if n_anchor and filter_by_n:
         n_train_examples = len([e for e in ds_train 
                                 if filter_triplet_by_n_anchors(e, n_anchor)])
         n_test_examples = len([e for e in ds_val 
@@ -197,14 +195,14 @@ def _run_training(log_path,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False, # edited
+                      eval_before_training=False,
                       test_steps=n_test_steps,
                       update_every=update_every)
     
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=False, # edited
+                shuffle=False,
                 transform=triplet_transform,
                 transform_test=True,
                 test_only=test_only,
@@ -213,7 +211,8 @@ def _run_training(log_path,
                         n_pos, 
                         n_neg],
                 batch_size=global_batch_size,
-                n_anchor=n_anchor)
+                n_anchor=n_anchor,
+                filter_by_n=filter_by_n)
     
 
 if __name__=='__main__':
@@ -222,11 +221,11 @@ if __name__=='__main__':
                   args.dataset_name,
                   args.triplet_type,
                   args.per_replica_batch_size, 
-                  args.dataset_size,
                   args.n_epochs,
                   args.start_epoch,
                   args.pad_anchor,
                   args.n_anchor,
+                  args.filter_by_n,
                   args.n_pos,
                   args.n_neg,
                   args.loss_margin,

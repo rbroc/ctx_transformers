@@ -59,7 +59,7 @@ parser.add_argument('--test-only',
                     action='store_true',
                     help='Whether to only run one test epoch')
 parser.add_argument('--encoder-trainable', 
-                    dest='test_only', 
+                    dest='encoder_trainable', 
                     action='store_true',
                     help='Whether to train the encoder')
 parser.set_defaults(test_only=False, encoder_trainable=False)
@@ -127,10 +127,10 @@ def _run_training(log_path,
     
     # initialize optimizer, model and loss object
     with strategy.scope():
-        optimizer = create_optimizer(2e-5, # allow edit
-                                     num_train_steps=n_train_steps * n_epochs, # allow edit
-                                     num_warmup_steps=n_train_steps / 10) # allow edit
-
+        #optimizer = create_optimizer(2e-5, # allow edit
+        #                             num_train_steps=n_train_steps * n_epochs, # allow edit
+        #                             num_warmup_steps=n_train_steps / 10) # allow edit
+        optimizer = tf.keras.optimizers.Adam(1e-2)
         model = model_class(transformer=TFDistilBertModel,
                             weights=weights,
                             metric_type=metric_type,

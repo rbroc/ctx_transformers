@@ -131,8 +131,11 @@ class ModelCheckpoint(Checkpoint):
         file_pattern = f'batch-{batch}-of-{self.trainer.steps_per_epoch}'
         out_pattern = epoch_dir / file_pattern
         self.trainer.model.save_weights(filepath=out_pattern, options=self.options)
-        self.trainer.model.save(filepath=out_pattern, options=self.moptions)
-
+        try:
+            self.trainer.model.encoder.save_pretrained(str(epoch_dir))
+        except:
+            pass
+        
 
 class OptimizerCheckpoint(Checkpoint):    
     ''' Checkpoint helper for optimizer

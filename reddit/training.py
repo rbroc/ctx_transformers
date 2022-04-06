@@ -51,7 +51,7 @@ class Trainer:
                  eval_before_training=True,
                  update_every=1,
                  metric_vars=None):
-        if ds_type not in ['agg', 'posts']:
+        if ds_type not in ['agg', 'posts', 'personality']:
             self.train_vars = LOG_DICT[ds_type]
         else:
             self.train_vars = metric_vars
@@ -163,12 +163,12 @@ class Trainer:
             if self.distributed:
                 outs, grads = self._run_distributed_train_step(example, labels)
                 if n == 0:
-                    accumulated_grads = grads # initialize gradients
-                    
+                    accumulated_grads = grads # initialize gradients 
                 else:
                     accumulated_grads = self._accumulate_gradients(grads, 
                                                                    accumulated_grads)
-                ids = list(tf.concat(example['id'].values, axis=0))
+                ids = list(tf.concat(example['id'].values, 
+                                     axis=0)) if 'id' in example.keys() else []
                 meta = [list(tf.concat(example[mvar].values, axis=0)) 
                         for mvar in self.meta_vars]
             else:
@@ -178,7 +178,7 @@ class Trainer:
                 else:
                     accumulated_grads = self._accumulate_gradients(grads, 
                                                                    accumulated_grads)
-                ids = list(example['id'])
+                ids = list(example['id']) if 'id' in example.keys() else []
                 meta = [list(example[mvar]) for mvar in self.meta_vars]
             
             if ((n+1) % self.update_every) == 0:
@@ -188,12 +188,13 @@ class Trainer:
             self.logger.log(list(outs), epoch, ids, n+1, meta=meta)
             pbar_values = [tf.reduce_mean(o).numpy() for o in outs]
             pb.add(1, values=list(zip(self.pbar_vars, pbar_values)))
-                   
+            
             if ((n+1) % self.checkpoint_every == 0) or \
                 (n+1 == self.steps_per_epoch):
                 self.model_ckpt.save(epoch, n+1)
                 self.opt_ckpt.save(epoch, n+1)
         
+        self.model_ckpt.save(epoch, n+1)
         print('; '.join([f'''Mean {m}: {tf.reduce_mean(self.logger.logdict[m]).numpy()}'''
                           for m in self.pbar_vars]))
         
@@ -211,12 +212,13 @@ class Trainer:
         for example in dataset_test:
             if self.distributed:
                 outs = self._run_distributed_test_step(example, labels)
-                ids = list(tf.concat(example['id'].values, axis=0))
+                ids = list(tf.concat(example['id'].values, 
+                                     axis=0)) if 'id' in example.keys() else []
                 meta = [list(tf.concat(example[mvar].values, axis=0)) 
                         for mvar in self.meta_vars]
             else:
                 outs = [[o] for o in self._test_step(example, labels)]
-                ids = list(example['id'])
+                ids = list(example['id']) if 'id' in example.keys() else []
                 meta = [list(example[mvar]) for mvar in self.meta_vars]
             self.logger.log(list(outs), epoch, ids, train=False, meta=meta)
             if self.test_steps:

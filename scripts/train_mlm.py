@@ -77,6 +77,7 @@ parser.add_argument('--n-layers-context-encoder', type=int, default=None,
                     help='''Number of transformer layers for 
                             additional context encoder architecture 
                             in biencoder ''')
+parser.add_argument('--ctxpath', type=str, default=None)
 
 # Define boolean args
 parser.add_argument('--reset-head', dest='reset_head', action='store_true',
@@ -108,7 +109,8 @@ def _run_training(mlm_type,
                   n_layers,
                   n_layers_context_encoder, 
                   update_every,
-                  test_only):
+                  test_only,
+                  ctxpath):
 
     # Define type of training
     if context_type == 'single':
@@ -213,7 +215,8 @@ def _run_training(mlm_type,
                                     n_tokens=n_tokens,
                                     aggregate=aggregate,
                                     n_contexts=n_contexts,
-                                    vocab_size=vocab_size)
+                                    vocab_size=vocab_size,
+                                    ctxpath=ctxpath)
         loss = MLMLoss()
         
 
@@ -271,4 +274,5 @@ if __name__=='__main__':
                   n_layers=args.n_layers,
                   n_layers_context_encoder=args.n_layers_context_encoder, 
                   update_every=args.update_every,
-                  test_only=args.test_only)
+                  test_only=args.test_only,
+                  ctxpath=args.ctxpath)

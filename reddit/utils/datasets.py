@@ -13,7 +13,8 @@ def filter_triplet_by_n_anchors(x, n_anchor):
 
 def pad_and_stack_triplet(dataset, 
                           pad_to=[20,1,1], 
-                          n_anchor=None):
+                          n_anchor=None,
+                          filter_by_n=True):
     ''' Pads the dataset according to specified number of posts 
         passed via pad_to (anchor, positive, negative) and stacks
         negative, positive and anchor posts vertically.
@@ -23,7 +24,9 @@ def pad_and_stack_triplet(dataset,
         pad_to (list or tuple): list containing number of posts
             to pad to, i.e., [n_anchor_posts, n_positive_posts,
             n_negative_posts]
-        n_anchor (int): minimum number of anchors
+        n_anchor (int): number of posts kept
+        filter_by_n (bool): whether to keep only users that have at least 
+            n_anchor posts
     '''
     # Slice
     dataset = dataset.map(lambda x: {'iids': x['iids'][:pad_to[0],:], 
@@ -54,8 +57,9 @@ def pad_and_stack_triplet(dataset,
                                                           [0,0]]),
                                      'author_id': x['author_id']})
     if n_anchor:
-        dataset = dataset.filter(lambda x: filter_triplet_by_n_anchors(x, 
-                                                                       n_anchor))
+        if filter_by_n:
+            dataset = dataset.filter(lambda x: filter_triplet_by_n_anchors(x, 
+                                                                           n_anchor))
         dataset = dataset.map(lambda x: {'iids': x['iids'][:n_anchor,:], 
                                          'amask': x['amask'][:n_anchor,:],
                                          'pos_iids': x['pos_iids'],
@@ -179,13 +183,23 @@ def mask_and_stack_mlm(dataset, is_context=True, is_combined=False, mask_proport
     
 
 def prepare_agg(dataset, targets):  
-    dataset = dataset.map(lambda x: {'input_ids': x['iids'],
-                                     'attention_mask': x['amask'],    
-                                     'id': x['author_id'],
-                                     'avg_score': x['avg_score'],
-                                     'avg_comm': x['avg_comm'], 
-                                     'avg_posts': x['avg_posts'],
-                                     'labels': [x[i] for i in targets]})
+    dataset = dataset.map(lambda x: {**{'input_ids': x['iids'],
+                                        'attention_mask': x['amask'],    
+                                        'id': x['author_id'],
+                                        'labels': [x[i] for i in targets]},
+                                     **{i: x[i] for i in targets}})
+    return dataset
+
+def prepare_personality(dataset, targets):  
+    dataset = dataset.map(lambda x: {**{'input_ids':tf.pad(x['iids'][:10,:], 
+                                                           [[0,10-tf.shape(x['iids'][:10,:])[0]],
+                                                           [0,0]]),
+                                        'attention_mask':tf.pad(x['amask'][:10,:], 
+                                                                [[0,10-tf.shape(x['amask'][:10,:])[0]],
+                                                                [0,0]]),    
+                                        'id': x['author_id'],
+                                        'labels': [x[i] for i in targets]},
+                                     **{i: x[i] for i in targets}})
     return dataset
 
 def prepare_posts(dataset, targets):  
@@ -198,6 +212,60 @@ def prepare_posts(dataset, targets):
     
     return dataset
     
+
+def pad_subreddits(dataset, pad_to=3, nr=1):
+    ''' Pads the dataset according to specified number of posts 
+        passed via pad_to (anchor, positive, negative) and stacks
+        negative, positive and anchor posts vertically.
+        Shuffles the anchor comments
+    Args:
+        dataset (TFDataset): dataset to pad and stack 
+        pad_to (int): pad to number of posts
+        nr (int): number of posts
+    '''
+    # Slice
+    dataset = dataset.map(lambda x: {'iids': x['iids'][:pad_to,:], 
+                                     'amask': x['amask'][:pad_to,:],
+                                     'labels': x['labels']})
+    # Pad
+    dataset = dataset.map(lambda x: {'iids': tf.pad(x['iids'], 
+                                                    [[0,pad_to-tf.shape(x['iids'])[0]],
+                                                     [0,0]]),
+                                     'amask': tf.pad(x['amask'], 
+                                                     [[0,pad_to-tf.shape(x['amask'])[0]],
+                                                      [0,0]]), 
+                                     'labels': x['labels']})
+    if nr:
+        dataset = dataset.map(lambda x: {'input_ids': x['iids'][:nr,:], 
+                                         'attention_mask': x['amask'][:nr,:],
+                                         'labels': x['labels']})
+    #dataset = dataset.filter(lambda x: tf.reduce_sum(x['labels'])!=0)
+    return dataset
+    
+    
+def pad_triplet_baselines(dataset, pad_to=3, nr=1):
+    ''' Pads the dataset according to specified number of posts 
+        passed via pad_to (anchor, positive, negative) and stacks
+        negative, positive and anchor posts vertically.
+        Shuffles the anchor comments
+    Args:
+        dataset (TFDataset): dataset to pad and stack 
+        pad_to (int): pad to number of posts
+        nr (int): number of posts
+    '''
+    # Slice
+    dataset = dataset.map(lambda x: {'iids': x['iids'][:pad_to,:], 
+                                     'labels': x['labels']})
+    # Pad
+    dataset = dataset.map(lambda x: {'iids': tf.pad(x['iids'], 
+                                                    [[0,pad_to-tf.shape(x['iids'])[0]],
+                                                     [0,0]]),
+                                     'labels': x['labels']})
+    if nr:
+        dataset = dataset.map(lambda x: {'input_ids': x['iids'][:nr,:], 
+                                         'labels': x['labels']})
+    return dataset    
+
     
 def split_dataset(dataset, size=None,
                   perc_train=.7, perc_val=.1, 

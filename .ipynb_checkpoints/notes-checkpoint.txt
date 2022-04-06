@@ -1,32 +1,50 @@
-Next up:
-# CHECK:
-- That the way the model updates is correct
-    - E.g., make copies of layers, concatenate better, etc.
-    - Or rely on HF updates?
-- Make masking easier?
+TO DO
+- Set up network and training for TFIDF
+- Run trained on test
+- Redo embeddings for more
+- Benchmark MLMs
+
+MLM
+- Align MLMs single and non single
+- Baseline triplet for single
+- Benchmark MLM
+- Make overview of MLM and triplet
+
+Tuesday on
+- Run jiant +  baselines
+- Run all benchmarks on MLM (pre- + post-agg)
+    - MLM
+    - Triplet
+    - Tweteval
+    - STS
+    - Personality
+    - Discoeval + Jiant
+    - Reddit/Twitter/Yelp
+- Check MLM biencoders training
+- Move models to MLM folder
+- Sentence tasks with context aggregation, no training
+
+Recap:
+- Small advantage on the personality tasks
+- Pretty much none for STS, Discoeval, YELP, Reddit, Twitter (double-check)
 
 
-# THEN
-- Try with different optimizers - in progress, but e.g., increase LR on Adam
-- Try other MLM protocols
-    - Skip connection concat
-    - Add one attention layer
-    - Other
-    - Previous + concatenate?
-- Classifier for triplet loss
-- Evaluation on aggregates
-- Probably make json subfolder for triplet too
+-------
 
-ENH
-- Change package name
-- Viz helpers for training
-- Rerun FFN model
+*** Conceptual guide ***
 
-Triplet note:
-- Rerun fine-tuning
-    - Loss function
-    - Model type
-- Any manipulation needed for the optimizer?
-- Should loss consider distance from average of anchor encodings, or average distance from each anchor encoding?
-- Add maximize distance between negative and anchor to loss?
+Goal 1: Make reddit dataset available on huggingface
+Goal 2: Wrap up triplet paper (dataset for self-supervised)
+Goal 3: MLM paper
+
+Paper 1, triplet:
+    - Text as person encoder
+    - Exploring this idea through triplet loss
+    - Many downstream tasks, lacking datasets
+
+Paper 2, MLM
+    - Compare MLM performance
+    - Compare triplet performance
+    - Compare other benchmarks
+    - TODO: single models
 

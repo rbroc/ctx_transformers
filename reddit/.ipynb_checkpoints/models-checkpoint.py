@@ -3,7 +3,8 @@ from tensorflow import keras
 from tensorflow.keras.layers import (Dense,
                                      Concatenate, 
                                      Lambda,
-                                     LayerNormalization)
+                                     LayerNormalization,
+                                     Dropout)
 from reddit.utils import (average_encodings,
                           dense_to_str, 
                           freeze_encoder_weights,
@@ -28,9 +29,7 @@ class BatchTransformer(keras.Model):
             transformer (model): model object from huggingface
                 transformers (e.g. TFDistilBertModel)
             pretrained_weights (str): path to pretrained weights
-            
             name (str): model name.
-            
             trainable (bool): whether to freeze weights
             output_attentions (bool): if attentions should be added
                 to outputs (useful for diagnosing but not much more)
@@ -56,6 +55,7 @@ class BatchTransformer(keras.Model):
                  vocab_size=30522,
                  n_layers=None, 
                  batch_size=1):
+        super(BatchTransformer, self).__init__(name=name)
         if name is None:
             cto_str = str(compress_to) + '_' if compress_to else 'no'
             cmode_str = compress_mode or ''
@@ -65,7 +65,6 @@ class BatchTransformer(keras.Model):
             layers_str = n_layers or 6
             name = f'BatchTransformer-{layers_str}layers-{cto_str}{cmode_str}dense'
             name = name + f'-{int_str}int-{pooling}-{weights_str}'
-        super(BatchTransformer, self).__init__(name=name)
         self.encoder = make_triplet_model_from_params(transformer,
                                                       pretrained_weights,  
                                                       vocab_size, 
@@ -558,7 +557,8 @@ class BiencoderForContextMLM(keras.Model):
                  n_contexts=10,
                  vocab_size=30522,
                  separable_body=False,
-                 separable_head=False
+                 separable_head=False,
+                 ctxpath=None
                 ):
         
         # Name parameters
@@ -596,9 +596,11 @@ class BiencoderForContextMLM(keras.Model):
         self.token_encoder = mlm_model.layers[0]
         freeze_encoder_weights(self.token_encoder, freeze_token_encoder)
         self.mlm_head = MLMHead(mlm_model, reset=True)
-        config_ctx_encoder = transformer.config_class(vocab_size=vocab_size,
-                                                      n_layers=n_layers_context_encoder)
-        self.context_encoder = transformer(config_ctx_encoder).layers[0]
+        self.context_encoder = transformer.from_pretrained(ctxpath).layers[0]
+        self.context_encoder.trainable = False
+        #config_ctx_encoder = transformer.config_class(vocab_size=vocab_size,
+        #                                              n_layers=n_layers_context_encoder)
+        #self.context_encoder = transformer(config_ctx_encoder).layers[0]
         
         # Define aggregation module
         if self.aggregate != 'attention':
@@ -654,17 +656,19 @@ class BatchTransformerForMetrics(keras.Model):
                  weights=None,
                  name=None, 
                  metric_type='aggregate',
-                 targets=['avg_posts'],
+                 targets=None,
+                 target_dims=20,
                  add_dense=0,
                  dims=None,
                  activations=None,
-                 encoder_trainable=False):
+                 encoder_trainable=False,
+                 initial_biases=None):
         dims_str = '_'.join(dims) + '_dense' if dims else 'nodense'
         if dims:
             if len(dims) != add_dense:
                 raise ValueError('dims should have add_dense values')
         if name is None:
-            name = f'BatchTransformerForMetrics-{dims_str}'
+            name = f'BatchTransformerForMetrics-{dims_str}' # potentially add targets?
         super(BatchTransformerForMetrics, self).__init__(name=name)
         self.encoder = transformer.from_pretrained(weights)
         self.encoder.trainable = encoder_trainable
@@ -676,18 +680,27 @@ class BatchTransformerForMetrics(keras.Model):
                                                   for i in range(add_dense)])
         else:
             self.dense_layers = None
-        self.head = Dense(len(targets), activation='relu')
+        if targets:
+            self.head = Dense(len(targets), activation='linear')
+        else:
+            self.head = Dense(target_dims, activation='linear')                 
         self.metric_type = metric_type
 
     def _encode_batch(self, example):
+        mask = tf.reduce_all(tf.equal(example['input_ids'], 0), 
+                             axis=-1, keepdims=True)
+        mask = tf.cast(mask, tf.float32)
+        mask = tf.abs(tf.subtract(mask, 1.))
         output = self.encoder(input_ids=example['input_ids'],
                               attention_mask=example['attention_mask'])
         encoding = output.last_hidden_state[:,0,:]
-        return encoding
+        masked_encoding = tf.multiply(encoding, mask)
+        return masked_encoding
 
     def _aggregate(self, encodings):
-        if self.metric_type == 'aggregate':
-            return tf.reduce_mean(encodings, axis=1)
+        if self.metric_type in ['aggregate', 'subreddit_classification']:
+            return tf.squeeze(average_encodings(encodings), 
+                              axis=1)
         elif self.metric_type == 'single':
             return encodings[:,0,:]
 
@@ -699,5 +712,3 @@ class BatchTransformerForMetrics(keras.Model):
         out = self.head(out)
         return out
 
-    
-    

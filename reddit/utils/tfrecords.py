@@ -9,6 +9,7 @@ FEATURE_NAMES = {'triplet': ['iids', 'amask',
                              'pos_iids', 'pos_amask',
                              'neg_iids', 'neg_amask', 
                              'author_id'],
+                 'triplet_baselines': ['iids', 'labels'],
                  'classification': ['iids', 'amask', 
                                     'iids2', 'amask2', 
                                     'labels', 
@@ -27,7 +28,14 @@ FEATURE_NAMES = {'triplet': ['iids', 'amask',
                 'agg': ['iids', 'amask', 
                         'avg_score', 'avg_comm', 'avg_posts', 
                         'author_id'],
-                'posts': ['iids', 'amask', 'comments', 'score', 'id']}
+                'personality': ['iids', 'amask', 
+                                'cneu', 'ccon', 'cext', 'cagr', 'copn', 
+                                'sneu', 'scon', 'sext', 'sagr', 'sopn', 
+                                'btw', 'nbtw', 'nsize', 'trst', 
+                                'dns', 'brk', 'nbr',
+                                'author_id'],
+                'posts': ['iids', 'amask', 'comments', 'score', 'id'],
+                'subreddit_classification': ['iids', 'amask', 'labels']}
 
 FEATURE_OUT_TYPES = {'triplet': tuple([tf.int32]*7),
                      'classification': tuple([tf.int32]*6),
@@ -37,9 +45,19 @@ FEATURE_OUT_TYPES = {'triplet': tuple([tf.int32]*7),
                      'agg': (tf.int32, tf.int32, 
                              tf.float32, tf.float32, tf.float32,
                              tf.int32),
+                     'personality': (tf.int32, tf.int32,
+                                     tf.float32, tf.float32, tf.float32,
+                                     tf.float32, tf.float32, tf.float32,
+                                     tf.float32, tf.float32, tf.float32,
+                                     tf.float32, tf.float32, tf.float32,
+                                     tf.float32, tf.float32, tf.float32,
+                                     tf.float32, tf.float32,
+                                     tf.int32),
                      'posts':(tf.int32, tf.int32, 
                               tf.float32, tf.float32, 
-                              tf.int32)}
+                              tf.int32),
+                     'subreddit_classification': (tf.int32, tf.int32, tf.float32),
+                     'triplet_baselines': (tf.int32, tf.float32)}
 
 
 
@@ -107,8 +125,7 @@ def save_tfrecord(dataset, prefix, path,
                                                    path,
                                                    compression, 
                                                    n_shards), 
-                            tf.int64.max )
-                            )
+                            tf.int64.max ))
     for s in dataset:
         print(f'Saving {s} from {prefix} ...')
 

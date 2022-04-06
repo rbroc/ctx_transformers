@@ -1,77 +1,117 @@
-from reddit.utils import (load_tfrecord, 
+from reddit.utils import (load_tfrecord,
                           split_dataset,
-                          mlm_transform,
-                          remove_short_targets)
-from reddit.models import (BatchTransformerForMLM, 
-                           BatchTransformerForContextMLM, 
-                           BiencoderForContextMLM, 
-                           HierarchicalTransformerForContextMLM)
-from reddit.losses import MLMLoss
+                          triplet_transform, 
+                          filter_triplet_by_n_anchors)
+from reddit.models import (BatchTransformer, BatchTransformerFFN)
+from reddit.losses import (TripletLossBase, TripletLossFFN)
 from reddit.training import Trainer
-from transformers import (TFDistilBertModel, 
-                          TFDistilBertForMaskedLM)
+from transformers import TFDistilBertModel
 import glob
 from pathlib import Path
 import argparse
 import tensorflow as tf
-import itertools
 from official.nlp.optimization import create_optimizer
 
 DATA_PATH = Path('..') /'reddit'/ 'data' / 'datasets'/ 'triplet'
 
-
-# Make model plotting utils! 
-# Set separable
-# Log model input args!
-
-# if biencoder, choose whether to use ctx or target encoder - handle aggregation
-# if hierarchical, use full thing - aggregation
-# if standard, use full thing - aggregation?
-
 # Initialize parser
 parser = argparse.ArgumentParser()
-parser.add_argument('--model-path', type=str, default=None,
-                    help='Path to pretrained model')
-parser.add_argument('--eval-dataset-name', type=str, default=None,
-                    help='Name of triplet dataset to use')
+
+# Training loop argument
+parser.add_argument('--dataset-name', type=str, default=None,
+                    help='Name of dataset to use')
+parser.add_argument('--triplet-type', type=str, default='standard',
+                    help='Should be standard or FFN')
 parser.add_argument('--log-path', type=str, default=None,
                     help='Path for metrics and checkpoints within ../logs')
 parser.add_argument('--per-replica-batch-size', type=int, default=20,
                     help='Batch size')
-parser.add_argument('--dataset-size', type=int, default=100000,
+parser.add_argument('--dataset-size', type=int, default=200000,
                     help='Number of examples in dataset (train + val)')
 parser.add_argument('--n-epochs', type=int, default=3,
-                    help='Number of epochs')
+                    help='Number of epochs')        
 parser.add_argument('--start-epoch', type=int, default=0,
                     help='Epoch to start from')
 parser.add_argument('--update-every', type=int, default=16,
                     help='Update every n steps')
-parser.add_argument('--model-type', type=str,
-                    help='Type of model (standard, hier, biencoder, combined)')
-parser.add_argument('--grouping', type=str, default='author',
-                    help='Whether evaluating triplet on group or subreddit')
+# Loss arguments
+parser.add_argument('--loss-margin', type=float, default=1.0,
+                    help='Margin for triplet loss')  
+parser.add_argument('--pad-anchor', type=int, default=10,
+                    help='Max number of anchor posts')
+parser.add_argument('--n-anchor', type=int, default=None,
+                    help='Number of anchor posts used in loss')
+parser.add_argument('--n-pos', type=int, default=1,
+                    help='Number of positive examples')
+parser.add_argument('--n-neg', type=int, default=1,
+                    help='Number of negative examples')
+# Model arguments
+parser.add_argument('--pretrained-weights', type=str, 
+                    default='distilbert-base-uncased',
+                    help='Pretrained huggingface model')
+parser.add_argument('--trained-encoder-weights', type=str, default=None,
+                    help='Path to trained encoder weights to load (hf format)')
+parser.add_argument('--compress-to', type=int, default=None,
+                    help='Dimensionality of compression head')
+parser.add_argument('--compress-mode', type=str, default=None,
+                    help='Whether to compress with dense or vae')
+parser.add_argument('--intermediate-size', type=int, default=None,
+                    help='Dimensionality of intermediate layer in head')
+parser.add_argument('--pooling', type=str, default='cls',
+                    help='Whether to compress via pooling or other ways')
+parser.add_argument('--vocab-size', type=int, default=30522,
+                    help='Vocab size (relevant if newn architecture')
+parser.add_argument('--n-layers', type=int, default=None,
+                    help='Nr layers if not pretrained')
+# Arguments for FFN triplet
+parser.add_argument('--n-dense', type=int, default=None,
+                    help='''Number of dense layers to add,
+                            relevant for FFN''')
+parser.add_argument('--dims', nargs='+', help='Number of nodes in layers', 
+                    default=None)
+parser.add_argument('--activations', nargs='+', help='Activations in layers', 
+                    default=None)
+# Define boolean args
 parser.add_argument('--test-only', dest='test_only', action='store_true',
                     help='Whether to only run one test epoch')
 parser.set_defaults(test_only=False)
 
 
-def _run_training(model_path,
+def _run_training(log_path, 
                   dataset_name,
-                  log_path, 
+                  triplet_type,
                   per_replica_batch_size, 
-                  dataset_size, # note that we only need to test 
+                  dataset_size,
                   n_epochs,
                   start_epoch,
+                  pad_anchor,
+                  n_anchor,
+                  n_pos,
+                  n_neg,
+                  loss_margin,
+                  pretrained_weights,
+                  trained_encoder_weights,
+                  compress_to,
+                  compress_mode,
+                  intermediate_size,
+                  pooling,
+                  n_dense,
+                  dims,
+                  activations,
                   update_every,
-                  model_type,
-                  grouping,
-                  test_only):
-
+                  test_only,
+                  vocab_size, 
+                  n_layers):
+    
     # Define type of training
-    model = keras.load_model(model_path)
+    model_class = BatchTransformer
+    loss = TripletLossBase(margin=loss_margin, 
+                           n_pos=n_pos, 
+                           n_neg=n_neg,
+                           n_anc=n_anchor)
    
     # Config
-    METRICS_PATH = Path('..') / 'logs' / 'mlm_eval' / log_path / grouping
+    METRICS_PATH = Path('..') / 'logs' / 'mlm_eval' / log_path
     METRICS_PATH.mkdir(parents=True, exist_ok=True)
     gpus = tf.config.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpus))
@@ -88,27 +128,25 @@ def _run_training(model_path,
     strategy = tf.distribute.MirroredStrategy(devices=logical_gpus)
     
     # Set up dataset 
-    pattern = str(DATA_PATH/ dataset_name / 'train'/ 'batch*')
-    fs = glob.glob(pattern)
-    ntr = int(dataset_size * .8 / 10000)
-    nval = int(dataset_size * .2 / 10000)
-    fs_train = list(itertools.chain(*[(fs[i], 
-                                       fs[i+200], 
-                                       fs[i+400]) 
-                                      for i in range(int(ntr/3))]))
-    fs_val = list(itertools.chain(*[(fs[int(ntr/3)+1], 
-                                     fs[int(ntr/3)+200], 
-                                     fs[int(ntr/3)+1+400]) 
-                                      for i in range(int(nval/3))]))
-    print(len(fs_train))
-    print(len(fs_val))
-    
-    
-    ds_train = load_tfrecord(fs_train, deterministic=False, ds_type='triplet')
-    ds_val = load_tfrecord(fs_val, deterministic=False, ds_type='triplet')
+    pattern = str(DATA_PATH / dataset_name / 'train'/ 'batch*')
+    fs_train = glob.glob(pattern)
+    ds = load_tfrecord(fs_train, deterministic=True, ds_type='triplet')
+    ds_train, ds_val, _ = split_dataset(ds, 
+                                        size=dataset_size, 
+                                        perc_train=.8, 
+                                        perc_val=.2, 
+                                        perc_test=.0)
     
     # Compute number of batches
     global_batch_size = len(logical_gpus) * per_replica_batch_size
+    if n_anchor:
+        n_train_examples = len([e for e in ds_train 
+                                if filter_triplet_by_n_anchors(e, n_anchor)])
+        n_test_examples = len([e for e in ds_val 
+                               if filter_triplet_by_n_anchors(e, n_anchor)])
+    else:
+        n_train_examples = len([e for e in ds_train])
+        n_test_examples = len([e for e in ds_val])
     print(f'{n_train_examples}, n test examples: {n_test_examples}')
     n_train_steps = int(n_train_examples / global_batch_size)
     n_test_steps = int(n_test_examples / global_batch_size)
@@ -119,24 +157,18 @@ def _run_training(model_path,
                                      num_train_steps=n_train_steps * 5, #* n_epochs,1
                                      num_warmup_steps=n_train_steps * 5 / 10) # n_epochs / 10) 
         
-        # May need to load the model again here
-        # load_model
-        
-        # pass the model to class which only keeps triplet-relevant evaluation
-        if model_type == 'biencoder':
-            pass
-        elif model_type == 'standard':
-            pass
-        elif model_type == 'hierarchical':
-            pass
-        elif model_type == 'single':
-            pass
-        else:
-            pass
-        
-        # Set margin loss (note that we could do classification too!)
-        loss = TripletLoss(margin=1.0)
-        
+        model = model_class(transformer=TFDistilBertModel,
+                            pretrained_weights=pretrained_weights,
+                            trained_encoder_weights=trained_encoder_weights,
+                            trained_encoder_class=TFDistilBertModel,
+                            trainable=True,
+                            output_attentions=False,
+                            compress_to=compress_to,
+                            compress_mode=compress_mode,
+                            intermediate_size=intermediate_size,
+                            pooling=pooling,
+                            vocab_size=vocab_size,
+                            n_layers=n_layers)
     
     # Initialize trainer
     trainer = Trainer(model=model,
@@ -151,45 +183,49 @@ def _run_training(model_path,
                       log_path=str(METRICS_PATH),
                       checkpoint_device=None,
                       distributed=True,
-                      eval_before_training=False,
+                      eval_before_training=True, # edited
                       test_steps=n_test_steps,
                       update_every=update_every)
-
+    
     # Run training
     trainer.run(dataset_train=ds_train, 
                 dataset_test=ds_val,
-                shuffle=False,#True, # saving time
-                transform=mlm_transform,
+                shuffle=False, # edited
+                transform=triplet_transform,
                 transform_test=True,
                 test_only=test_only,
-                labels=True, 
-                is_context=True,
-                mask_proportion=.15,
+                labels=False, 
+                pad_to=[pad_anchor, 
+                        n_pos, 
+                        n_neg],
                 batch_size=global_batch_size,
-                is_combined=True)
+                n_anchor=n_anchor)
     
 
 if __name__=='__main__':
     args = parser.parse_args()
-    _run_training(mlm_type=args.mlm_type,
-                  log_path=args.log_path, 
-                  dataset_name=args.dataset_name,
-                  per_replica_batch_size=args.per_replica_batch_size, 
-                  dataset_size=args.dataset_size,
-                  n_epochs=args.n_epochs,
-                  start_epoch=args.start_epoch,
-                  pretrained_weights=args.pretrained_weights,
-                  trained_encoder_weights=args.trained_encoder_weights,
-                  freeze_encoder=args.freeze_encoder,
-                  reset_head=args.reset_head,
-                  add_dense=args.add_dense,
-                  dims=args.dims,
-                  activations=args.activations,
-                  n_contexts=args.n_contexts,
-                  n_tokens=args.n_tokens,
-                  vocab_size=args.vocab_size,
-                  aggregate=args.aggregate,
-                  n_layers=args.n_layers,
-                  n_layers_context_encoder=args.n_layers_context_encoder, 
-                  update_every=args.update_every,
-                  test_only=args.test_only)
+    _run_training(args.log_path, 
+                  args.dataset_name,
+                  args.triplet_type,
+                  args.per_replica_batch_size, 
+                  args.dataset_size,
+                  args.n_epochs,
+                  args.start_epoch,
+                  args.pad_anchor,
+                  args.n_anchor,
+                  args.n_pos,
+                  args.n_neg,
+                  args.loss_margin,
+                  args.pretrained_weights,
+                  args.trained_encoder_weights,
+                  args.compress_to,
+                  args.compress_mode,
+                  args.intermediate_size,
+                  args.pooling,
+                  args.n_dense,
+                  args.dims,
+                  args.activations,
+                  args.update_every,
+                  args.test_only,
+                  args.vocab_size,
+                  args.n_layers)

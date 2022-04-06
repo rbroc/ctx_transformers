@@ -7,6 +7,7 @@ import json
 import argparse
 from reddit.utils import stringify
 import numpy as np
+from sklearn.preprocessing import quantile_transform, MinMaxScaler
 
 
 parser = argparse.ArgumentParser()
@@ -61,7 +62,7 @@ def _get_date(which):
 
 
 def _zip_dicts(ds):
-    ''' Merges dictionaris with common keys'''
+    ''' Merges dictionaries with common keys'''
     for idx, k in enumerate(ds[0].keys()):
         
         ad = {'author': k,
@@ -112,7 +113,7 @@ def _save_example_dicts(d, outpath, batch_size=10000):
 
 
 def make_aggregate_dataset(n_posts=10, batch_size=10000,
-                          perc_train=.9, perc_test=.1):
+                           perc_train=.9, perc_test=.1):
     ''' Create datasets with n_posts posts per author and 
         aggregate metrics as labels (avg number of upvotes,
         comments, etc.). Which metrics is hard-coded right now.
@@ -135,7 +136,32 @@ def make_aggregate_dataset(n_posts=10, batch_size=10000,
     tr_com = _query_agg_by_author('num_comments', 5, 'avg_comm', tr_auths, 'AVG')
     ts_upv = _query_agg_by_author('score', 5, 'avg_score', ts_auths, 'AVG')
     ts_com = _query_agg_by_author('num_comments', 5, 'avg_comm', ts_auths, 'AVG')
-
+    
+    # Get scores
+    upvs = [tr_upv[a]['avg_score'] for a in tr_upv.keys()]
+    n_tr = len(upvs)
+    upvs = upvs + [ts_upv[a]['avg_score'] for a in ts_upv.keys()]
+    coms = [tr_com[a]['avg_comm'] for a in tr_com.keys()]
+    coms = coms + [ts_com[a]['avg_comm'] for a in ts_com.keys()]
+    
+    print('*** Quantile-transform to normal ***')
+    scaler = MinMaxScaler()
+    upvs = scaler.fit_transform(np.array(upvs).reshape(-1,1))[:,0]
+    coms = scaler.fit_transform(np.array(coms).reshape(-1,1))[:,0]
+    #upvs = quantile_transform(np.array(upvs).reshape(-1,1), 
+    #                          output_distribution='normal')[:,0]
+    #coms = quantile_transform(np.array(coms).reshape(-1,1), 
+    #                          output_distribution='normal')[:,0]
+    
+    for i, a in enumerate(list(tr_upv.keys())):
+        tr_upv[a]['avg_score'] = upvs[i]
+    for i, a in enumerate(list(ts_upv.keys())):
+        ts_upv[a]['avg_score'] = upvs[n_tr+i]
+    for i, a in enumerate(list(tr_com.keys())):
+        tr_com[a]['avg_comm'] = coms[i]
+    for i, a in enumerate(list(ts_com.keys())):
+        ts_com[a]['avg_comm'] = coms[n_tr+i]
+    
     print('*** Fetching average number of posts per day ***')
     max_date = _get_date('MAX')
     min_date = _get_date('MIN')
@@ -159,7 +185,7 @@ def make_aggregate_dataset(n_posts=10, batch_size=10000,
     for split, gen in zip(['train', 'test'], 
                           [gen_train, gen_test]):
         lst = [e for e in gen]
-        OUTPATH = AGG_PATH / f'{n_posts}_random' / split
+        OUTPATH = AGG_PATH / f'{n_posts}_random_norm' / split
         OUTPATH.mkdir(exist_ok=True, parents=True)
         _save_example_dicts(lst, OUTPATH, batch_size)
     
