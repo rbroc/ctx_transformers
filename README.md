@@ -18,17 +18,12 @@ They look (roughly) like this:
 #### Rationale
 The importance of this project is two-fold. First, this way of tuning models to produce context-aware representations may provide intrinsic advantages in NLP tasks (e.g., for MLM, knowledge of the author may make it easier to accurately reconstruct missing words), without substantial increase in model complexity. Secondly, text-based representations of text authors could be used to predict individual traits, following the intuition that linguistic behavior is systematically influenced by personality, experiences, etc.
 
-
-#### Status
-This project is still in progress, and it has so far been a great source of learning and of motivation to keep working with deep learning and NLP. I had to build a large-scale Reddit dataset from scratch, a ‘big data’ experience that gained me proficiency in SQL, and I have become increasingly proficient in Tensorflow for both model engineering, distributed training, and efficient data pipelines. Being a self-taught ML engineer, I have made all possible rookie mistakes in the process and have greatly benefitted from each of them.
-
-The project started as a collaboration with Tal Yarkoni, but I have been responsible for implementation throughout and for its evolution in the last months. Code is publicly available in this repository. Planning on making everything nice and tidy once write-up is close, and to share the dataset for public use.
-
-
 #### Some notes on the repo
 The Reddit dataset generated through the code in ```reddit/preprocessing``` is not uploaded for storage reasons. It is a ```TFRecords``` datasets that gets streamed during training.
 Models are defined in ```reddit/models.py``` and auxiliary layers are defined in ```reddit/layers.py```. I am still experimenting with the architectures, so there's a few parameters to set for each of those.
 Functions for (distributed) training and logging are in ```reddit/training.py``` and ```reddit/logging.py``` respectively.
 
+#### Status
+This project is still in progress.
 
 
