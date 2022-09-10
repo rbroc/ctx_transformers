@@ -31,8 +31,4 @@ Models are defined in ```reddit/models.py``` and auxiliary layers are defined in
 Functions for (distributed) training and logging are in ```reddit/training.py``` and ```reddit/logging.py``` respectively.
 
 
-#### How it all started!
-You may notice that there's quite a bit of code for triplet loss training. The initial idea was to fine-tune transformers to produce  representations of text such that text from the same author would have shorter Euclidean distance that sequences of text from different authors (as in triplet loss training used for CV). After fine-tuning on triplet loss, we would use transformers to produce aggregate representations of text from a given user as the input to a layer fine-tuned on prediction of individual traits.  \n
-This was a super fun project, and fine-tuning made performance on triplet discrimination reach 90% on the training set (base BERT did ~60%), and even with a compression layer on top that reduced embedding dimensionality to 50, the model did pretty well. However, we lacked data for evaluation on prediction of individual traits - and we ultimately thought that context-aware MLM would be a cooler problem to focus on from the NLP engineering perspective, so we went for that. Triplet loss remained relevant as an evaluation task for context-aware MLM models, as it can be a proxy for whether context-aware MLM training induces representations that pick up on authors' individual traits. :)
-
 
